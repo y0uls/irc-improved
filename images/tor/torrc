@@ -1,0 +1,4 @@
+SocksPort 0
+HiddenServiceDir /var/lib/tor/hidden_service/
+HiddenServicePort 6667 irc:6667
+Log notice stdout
