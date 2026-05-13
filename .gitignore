@@ -1,0 +1,7 @@
+.env
+client-package/HexChat-config/
+images/tor/hidden_service/hs_ed25519_secret_key
+images/tor/hidden_service/hs_ed25519_public_key
+images/tor/hidden_service/hostname
+node-compile-cache/
+phantomjs/
