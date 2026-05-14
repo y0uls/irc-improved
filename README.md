@@ -5,20 +5,26 @@ Serveur IRC privé accessible via un hidden service Tor, avec interface web int�
 ## Structure du projet
 
 ```
-├── setup.bat                  ← Setup et démarrage du serveur
-├── uninstall.bat              ← Désinstallation complète
-├── .env.example               ← Template de configuration
+├── setup.bat                       ← Setup et démarrage du serveur
+├── uninstall.bat                   ← Désinstallation complète
+├── .env.example                    ← Template de configuration
 ├── docker-compose.yml
 ├── images/
-│   ├── irc/                   ← Image InspIRCd custom
-│   └── tor/                   ← Image Tor hidden service
+│   ├── irc/
+|   |   ├── docker.motd             ← Page d'acceuil du serveur IRC
+|   |   ├── Dockerfile              ← Crée l'image InspIRCd
+|   |   ├── entrypoint-wrapper.sh   ← Crée le channel par défaut
+|   |   └── permchannels.conf       ← Fichier channel par défaut
+│   └── tor/
+|       ├── Dockerfile              ← Crée l'image Tor
+|       └── torrc                   ← Fichier de création du hidden service
 └── client-package/
-    ├── build-client.bat       ← Génère IRC-Client.zip
+    ├── build-client.bat            ← Génère IRC-Client.zip
     └── config/
-        ├── start.bat          ← Wrapper client (Tor + HexChat)
-        ├── uninstall.bat      ← Désinstalleur côté client
-        ├── hexchat.conf       ← Config HexChat complète (proxy inclus)
-        └── servlist.conf      ← Template réseau IRC (placeholders)
+        ├── start.bat               ← Wrapper client (Tor + HexChat)
+        ├── uninstall.bat           ← Désinstalleur côté client
+        ├── hexchat.conf            ← Config HexChat complète (proxy inclus)
+        └── servlist.conf           ← Template réseau IRC (placeholders)
 ```
 
 ---
