@@ -22,8 +22,8 @@ if not exist ".env" (
     echo [OK] Fichier .env cree.
     echo.
 )
-
-:: IRC_NETWORK_NAME
+echo === Configuration du fichier .env ===
+echo.
 findstr /C:"MonReseau" .env >nul
 if not errorlevel 1 (
     echo [ATTENTION] IRC_NETWORK_NAME est toujours "MonReseau".
@@ -35,7 +35,6 @@ if not errorlevel 1 (
     echo.
 )
 
-:: Hash mot de passe oper
 findstr /C:"CHANGEME" .env >nul
 if not errorlevel 1 (
     echo [ATTENTION] OPER_PASSWORD_HASH est toujours "CHANGEME".
@@ -55,7 +54,6 @@ if not errorlevel 1 (
     echo.
 )
 
-:: Mot de passe de connexion
 findstr /C:"CONNECT_PASSWORD=CHANGEME" .env >nul
 if not errorlevel 1 (
     echo.
@@ -69,7 +67,6 @@ if not errorlevel 1 (
     echo.
 )
 
-:: Channel par défaut
 findstr /C:"DEFAULT_CHANNEL=DEFAULTCHANNEL" .env >nul
 if not errorlevel 1 (
     echo.
