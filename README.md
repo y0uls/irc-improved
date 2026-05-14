@@ -1,6 +1,6 @@
 # IRC Server — Docker (InspIRCd + Tor + The Lounge)
 
-Serveur IRC privé accessible via un hidden service Tor, avec interface web intégrée et package client Windows clé en main.
+Serveur IRC privé accessible via un hidden service Tor, avec interface web local intégrée et package client Windows clé en main.
 
 ## Structure du projet
 
@@ -24,8 +24,8 @@ Serveur IRC privé accessible via un hidden service Tor, avec interface web int�
         ├── start.bat               ← Wrapper client (Tor + HexChat)
         ├── uninstall.bat           ← Désinstalleur côté client
         ├── hexchat.conf            ← Config HexChat complète (proxy inclus)
-        └── servlist.conf           ← Template réseau IRC (placeholders)
-            └── tor/                ← Tous les fichiers utiles pour faire fonctionner tor
+        ├── servlist.conf           ← Template réseau IRC (placeholders)
+        └── tor/                    ← Tous les fichiers utiles pour faire fonctionner tor
 ```
 
 ---
