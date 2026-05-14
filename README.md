@@ -25,6 +25,7 @@ Serveur IRC privé accessible via un hidden service Tor, avec interface web int�
         ├── uninstall.bat           ← Désinstalleur côté client
         ├── hexchat.conf            ← Config HexChat complète (proxy inclus)
         └── servlist.conf           ← Template réseau IRC (placeholders)
+            └── tor/                ← Tous les fichiers utiles pour faire fonctionner tor
 ```
 
 ---
@@ -100,6 +101,7 @@ IRC-Client.zip
 ├── HexChat\
 │   ├── servlist.conf     ← Réseau .onion préconfiguré
 │   └── hexchat.conf      ← Config complète avec proxy SOCKS5
+├── tor\                  ← Tous les fichiers utiles pour faire fonctionner tor
 ├── start.bat             ← Lancement tout-en-un
 ├── uninstall.bat         ← Désinstallation côté client
 └── README.txt
@@ -107,30 +109,26 @@ IRC-Client.zip
 
 ### Ce que fait `start.bat` côté client
 
-1. Se relance en administrateur si nécessaire (requis pour l'installation silencieuse de HexChat)
-2. Télécharge et installe **HexChat** silencieusement si absent
-3. Copie la configuration HexChat préconfigurée dans `%APPDATA%\HexChat\`
-4. Télécharge et extrait le **Tor Expert Bundle** si absent
-5. Lance `tor.exe` en arrière-plan
-6. Attend que le proxy SOCKS5 soit disponible sur `127.0.0.1:9050`
-7. Lance **HexChat** (connecté automatiquement au serveur)
-8. Quand HexChat est fermé, arrête `tor.exe`
+1. Télécharge et installe **HexChat** silencieusement si absent
+2. Copie la configuration HexChat préconfigurée dans `%APPDATA%\HexChat\`
+3. Lance `tor.exe` en arrière-plan
+4. Attend que le proxy SOCKS5 soit disponible sur `127.0.0.1:9050`
+5. Lance **HexChat** (connecté automatiquement au serveur)
+6. Quand HexChat est fermé, arrête `tor.exe`
 
 L'utilisateur n'a qu'à double-cliquer `start.bat`. Tout est automatique.
 
 ### Ce que fait `uninstall.bat` côté client
 
 - Arrête Tor et HexChat si actifs
-- Supprime le dossier `tor\` à côté de `start.bat`
 - Supprime `%APPDATA%\HexChat\` (config, logs)
 - Désinstalle HexChat silencieusement
-- Nettoie les installeurs en cache dans `%TEMP%`
 
 ---
 
 ## Connexion via The Lounge (interface web)
 
-1. Ouvre `http://localhost:8080`
+1. Ouvre `http://localhost:8080` (si configuré pendant le setup)
 2. Connecte-toi avec le compte créé pendant le setup
 3. Clique sur **+ Add a network** :
    - **Server** : `irc`
@@ -155,7 +153,7 @@ L'utilisateur n'a qu'à double-cliquer `start.bat`. Tout est automatique.
 
 ## Devenir oper
 
-Une fois connecté au serveur :
+Une fois connecté au serveur IRC :
 
 ```
 /OPER admin VOTRE_MOT_DE_PASSE_EN_CLAIR
