@@ -1,87 +1,141 @@
 # IRC Server — Docker (InspIRCd + Tor + The Lounge)
 
-Serveur IRC privé accessible via Tor hidden service, avec une interface web intégrée.
+Serveur IRC privé accessible via un hidden service Tor, avec interface web intégrée et package client Windows clé en main.
 
-## Architecture
+## Structure du projet
 
 ```
-[Client IRC + proxy SOCKS5]
-        │
-        ▼
-  proxytor (:9050) ──► Tor (.onion:6667) ──► InspIRCd
-                                                 ▲
-                                    The Lounge (:8080)
+├── setup.bat                  ← Setup et démarrage du serveur
+├── uninstall.bat              ← Désinstallation complète
+├── .env.example               ← Template de configuration
+├── docker-compose.yml
+├── images/
+│   ├── irc/                   ← Image InspIRCd custom
+│   └── tor/                   ← Image Tor hidden service
+└── client-package/
+    ├── build-client.bat       ← Génère IRC-Client.zip
+    └── config/
+        ├── start.bat          ← Wrapper client (Tor + HexChat)
+        ├── uninstall.bat      ← Désinstalleur côté client
+        ├── hexchat.conf       ← Config HexChat complète (proxy inclus)
+        └── servlist.conf      ← Template réseau IRC (placeholders)
 ```
-
-Le service `proxytor` expose un proxy SOCKS5 sur le port `9050` de ta machine.  
-Les clients IRC (HexChat, WeeChat…) s'y connectent pour atteindre le `.onion` sans installer Tor.
 
 ---
 
-## Déploiement
+## Déploiement du serveur
 
-```bash
-# Windows
+### Prérequis
+
+- Docker Desktop installé et démarré
+- Windows 10/11
+
+### Démarrage
+
+```bat
 setup.bat
-
-# Linux / Mac
-bash setup.sh
 ```
 
 Le script gère automatiquement :
-1. La création du `.env` depuis `.env.example`
-2. La génération du hash du mot de passe oper
-3. La configuration du mot de passe de connexion et du channel par défaut
-4. Le build et le démarrage des containers
-5. L'affichage de l'adresse `.onion`
-6. La création du compte The Lounge
+
+1. Création du `.env` depuis `.env.example`
+2. Configuration du nom du réseau IRC
+3. Génération du hash du mot de passe oper (`hmac-sha256`)
+4. Configuration du mot de passe de connexion et du channel par défaut
+5. Build et démarrage des containers
+6. Affichage de l'adresse `.onion`
+7. Création optionnelle d'un compte The Lounge
+
+### Services disponibles
+
+| Service | Description | Port |
+|---|---|---|
+| `irc` | Serveur InspIRCd | interne |
+| `tor` | Hidden service Tor | interne |
+| `proxytor` | Proxy SOCKS5 Tor (optionnel) | `9050`, `8118` |
+| `webclient` | Interface web The Lounge (optionnel) | `8080` |
+
+`proxytor` et `webclient` sont optionnels — le script de setup te demande si tu veux les démarrer.
 
 ---
 
-## Se connecter
+## Variables d'environnement (`.env`)
 
-### Option 1 — Interface web The Lounge (recommandé)
+| Variable | Description | Défaut |
+|---|---|---|
+| `IRC_NETWORK_NAME` | Nom du réseau IRC | `MonReseau` |
+| `IRC_NET_SUFFIX` | Suffixe hostname serveur | `.irc.local` |
+| `ADMIN_NAME` | Nom de l'admin | `admin` |
+| `ADMIN_NICK` | Pseudo de l'admin | `Admin` |
+| `ADMIN_EMAIL` | Email admin | `admin@localhost` |
+| `CONNECT_PASSWORD` | Mot de passe de connexion au serveur (vide = aucun) | — |
+| `OPER_PASSWORD_HASH` | Hash `hmac-sha256` du mot de passe oper | — |
+| `DEFAULT_CHANNEL` | Channel créé au démarrage | `#general` |
+| `DEFAULT_TOPIC` | Topic du channel par défaut | — |
+| `WEBCLIENT_PORT` | Port de The Lounge | `8080` |
+
+---
+
+## Générer le package client Windows
+
+Une fois le serveur démarré :
+
+```bat
+cd client-package
+build-client.bat
+```
+
+Cela génère `client-package\IRC-Client.zip` en récupérant automatiquement l'adresse `.onion` depuis le container Tor et en l'injectant dans la configuration HexChat.
+
+### Contenu du zip distribué
+
+```
+IRC-Client.zip
+├── HexChat\
+│   ├── servlist.conf     ← Réseau .onion préconfiguré
+│   └── hexchat.conf      ← Config complète avec proxy SOCKS5
+├── start.bat             ← Lancement tout-en-un
+├── uninstall.bat         ← Désinstallation côté client
+└── README.txt
+```
+
+### Ce que fait `start.bat` côté client
+
+1. Se relance en administrateur si nécessaire (requis pour l'installation silencieuse de HexChat)
+2. Télécharge et installe **HexChat** silencieusement si absent
+3. Copie la configuration HexChat préconfigurée dans `%APPDATA%\HexChat\`
+4. Télécharge et extrait le **Tor Expert Bundle** si absent
+5. Lance `tor.exe` en arrière-plan
+6. Attend que le proxy SOCKS5 soit disponible sur `127.0.0.1:9050`
+7. Lance **HexChat** (connecté automatiquement au serveur)
+8. Quand HexChat est fermé, arrête `tor.exe`
+
+L'utilisateur n'a qu'à double-cliquer `start.bat`. Tout est automatique.
+
+### Ce que fait `uninstall.bat` côté client
+
+- Arrête Tor et HexChat si actifs
+- Supprime le dossier `tor\` à côté de `start.bat`
+- Supprime `%APPDATA%\HexChat\` (config, logs)
+- Désinstalle HexChat silencieusement
+- Nettoie les installeurs en cache dans `%TEMP%`
+
+---
+
+## Connexion via The Lounge (interface web)
 
 1. Ouvre `http://localhost:8080`
 2. Connecte-toi avec le compte créé pendant le setup
-3. Clique sur **+ Add a network** et configure :
-   - **Name** : ce que tu veux
+3. Clique sur **+ Add a network** :
    - **Server** : `irc`
    - **Port** : `6667`
    - **TLS** : désactivé
    - **Channel** : ton channel par défaut (ex: `#general`)
    - **Password** : le mot de passe de connexion (si configuré)
-4. Clique sur **Connect**
 
 ---
 
-### Option 2 — HexChat via proxytor (inclus dans Docker)
-
-Le proxy Tor tourne déjà dans Docker, exposé sur `localhost:9050`.  
-**Pas besoin d'installer Tor sur ta machine.**
-
-#### Configuration HexChat
-
-1. **Settings → Preferences → Network Setup**
-   - Hostname : `127.0.0.1`
-   - Port : `9050`
-   - Type : `Socks5`
-   - Laisse "Username" et "Password" vides
-
-2. **HexChat → Network List → Add**
-   - Name : `MonServeurIRC`
-   - Servers : `<adresse>.onion/6667`
-   - Décocher "Use SSL"
-   - Server password : ton mot de passe de connexion (si configuré)
-
-3. Clique **Connect**
-
-Pour récupérer ton adresse `.onion` :
-```bash
-docker compose exec tor cat /var/lib/tor/hidden_service/hostname
-```
-
-#### Configuration WeeChat
+## Connexion via WeeChat (avancé)
 
 ```
 /set proxy.proxies.tor.type socks5
@@ -93,57 +147,25 @@ docker compose exec tor cat /var/lib/tor/hidden_service/hostname
 
 ---
 
-## Distribuer HexChat à tes utilisateurs (Windows)
-
-Pour que tes utilisateurs se connectent facilement **sans rien configurer** :
-
-1. Télécharge **HexChat** : https://hexchat.github.io
-2. Lance HexChat une fois, configure le réseau + proxy comme ci-dessus
-3. Copie le dossier de config HexChat :
-   ```
-   %APPDATA%\HexChat\
-   ```
-4. Zippe HexChat + ce dossier de config et distribue l'archive.
-
-Les utilisateurs extraient, lancent HexChat, et tombent directement sur ton serveur.  
-> Le proxy `localhost:9050` doit être accessible sur leur machine → ils doivent aussi lancer ton `docker-compose` ou avoir Tor installé.
-
----
-
 ## Devenir oper
 
-Une fois connecté, tape dans ton client IRC :
+Une fois connecté au serveur :
+
 ```
-/OPER admin VOTRE_MOT_DE_PASSE
-```
-(le mot de passe en clair saisi pendant le setup, pas le hash)
-
----
-
-## Ajouter un compte The Lounge
-
-```bash
-docker compose exec webclient thelounge add PSEUDO
-```
-
----
-## Supprimer un compte The Lounge
-
-```bash
-docker compose exec webclient thelounge remove PSEUDO
+/OPER admin VOTRE_MOT_DE_PASSE_EN_CLAIR
 ```
 
 ---
 
 ## Commandes utiles
 
-```bash
-# Voir les logs
-docker compose logs -f irc
-docker compose logs -f tor
-
+```bat
 # Voir l'adresse .onion
 docker compose exec tor cat /var/lib/tor/hidden_service/hostname
+
+# Logs en direct
+docker compose logs -f irc
+docker compose logs -f tor
 
 # Redémarrer un service
 docker compose restart irc
@@ -151,17 +173,22 @@ docker compose restart irc
 # Arrêter tout
 docker compose down
 
-# Désinstallation complète
-bash uninstall.sh        # Linux/Mac
-uninstall.bat            # Windows
+# Ajouter un compte The Lounge
+docker compose exec webclient thelounge add PSEUDO
+
+# Supprimer un compte The Lounge
+docker compose exec webclient thelounge remove PSEUDO
+
+# Désinstallation complète (containers, volumes, images, .env)
+uninstall.bat
 ```
 
 ---
 
 ## Sécurité
 
-- Les clés Tor sont dans un **volume Docker** — ton adresse `.onion` persiste entre les redémarrages
-- Le mot de passe oper est stocké **hashé** dans le `.env`
-- Le `.env` est dans `.gitignore` — ne le commitez jamais
-- `INSP_ENABLE_DNSBL=no` est forcé pour que Tor fonctionne correctement
-- Le proxy `proxytor` expose `9050` uniquement en local (`127.0.0.1`) — pas accessible depuis l'extérieur
+- Les clés Tor sont stockées dans un **volume Docker** — l'adresse `.onion` persiste entre les redémarrages
+- Le mot de passe oper est stocké **hashé** (`hmac-sha256`) dans le `.env`
+- `INSP_ENABLE_DNSBL=no` est forcé pour la compatibilité Tor
+- Le `.env` doit être dans `.gitignore` — **ne jamais le committer**
+- Le zip client ne contient aucune clé privée ni donnée sensible du serveur
