@@ -23,15 +23,6 @@ if not errorlevel 1 (
     echo [OK] HexChat arrete.
 )
 
-:: ---- Suppression Tor ----
-set TORDIR=%~dp0tor
-if exist "%TORDIR%" (
-    rmdir /s /q "%TORDIR%"
-    echo [OK] Dossier Tor supprime.
-) else (
-    echo [INFO] Dossier Tor deja absent.
-)
-
 :: ---- Suppression config HexChat (AppData) ----
 set HXAPPDATA=%APPDATA%\HexChat
 if exist "%HXAPPDATA%" (
@@ -41,20 +32,22 @@ if exist "%HXAPPDATA%" (
     echo [INFO] Config HexChat deja absente.
 )
 
-:: ---- Desinstallation HexChat ----
-set "HXUNINST=%ProgramW6432%\HexChat"
-if exist "%HXUNINST%\unins000.exe" (
-    echo [INFO] Desinstallation HexChat...
-    "%HXUNINST%\unins000.exe" /S
-    rmdir /S /Q "%HXUNINST%"
-    echo [OK] HexChat desinstalle.
+:: ---- Desinstallation HexChat via winget ----
+echo [INFO] Desinstallation de HexChat...
+winget uninstall --id HexChat.HexChat --exact --silent --accept-source-agreements >nul 2>&1
+if %ERRORLEVEL% EQU 0 (
+    echo [OK] HexChat desinstalle via winget.
 ) else (
-    echo [INFO] Uninstaller HexChat non trouve (deja absent).
+    :: Securite : Si winget echoue ou si installe manuellement avant
+    set "HXUNINST=%ProgramW6432%\HexChat"
+    if exist "!HXUNINST!\unins000.exe" (
+        "!HXUNINST!\unins000.exe" /S
+        rmdir /S /Q "!HXUNINST!" >nul 2>&1
+        echo [OK] HexChat desinstalle manuellement.
+    ) else (
+        echo [INFO] HexChat non trouve ou deja desinstalle.
+    )
 )
-
-:: ---- Nettoyage cache ----
-if exist "%TEMP%\tor-expert.zip" del /f /q "%TEMP%\tor-expert.zip" & echo [OK] Cache Tor supprime.
-if exist "%TEMP%\HexChat-installer.exe" del /f /q "%TEMP%\HexChat-installer.exe" & echo [OK] Cache HexChat supprime.
 
 echo.
 echo [OK] Desinstallation terminee.

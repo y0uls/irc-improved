@@ -5,22 +5,27 @@ echo === Lancement IRC sur Tor ===
 echo.
 
 set SCRIPTDIR=%~dp0
-:: SCRIPTDIR se termine toujours par \, TOREXE est le chemin absolu direct
-set TOREXE=%~dp0tor\tor\tor.exe
 
 :: ---- HexChat ----
 set HEXCHAT_EXE=%ProgramFiles%\HexChat\hexchat.exe
 if not exist "%HEXCHAT_EXE%" set HEXCHAT_EXE=%LOCALAPPDATA%\HexChat\hexchat.exe
+
 if not exist "%HEXCHAT_EXE%" (
-    echo [INFO] HexChat absent. Telechargement...
-    set HCINST=!TEMP!\HexChat-installer.exe
-    powershell -Command "[Net.ServicePointManager]::SecurityProtocol='Tls12'; Import-Module BitsTransfer; Start-BitsTransfer -Source 'https://github.com/hexchat/hexchat/releases/download/v2.16.2/HexChat.2.16.2.x64.exe' -Destination '!HCINST!'"
-    if not exist "!HCINST!" ( echo [ERREUR] Echec telechargement HexChat. & pause & exit /b 1 )
-    powershell -Command "Start-Process '!HCINST!' -ArgumentList '/S' -Wait"
+    echo [INFO] HexChat absent. Installation via winget en cours...
+    
+    :: Installation silencieuse via winget avec acceptation auto des licences
+    winget install --id HexChat.HexChat --exact --silent --accept-package-agreements --accept-source-agreements
+    
+    :: Re-verification du chemin apres installation
     set HEXCHAT_EXE=%ProgramFiles%\HexChat\hexchat.exe
     if not exist "!HEXCHAT_EXE!" set HEXCHAT_EXE=%LOCALAPPDATA%\HexChat\hexchat.exe
-    if not exist "!HEXCHAT_EXE!" ( echo [ERREUR] HexChat introuvable apres installation. & pause & exit /b 1 )
-    echo [OK] HexChat installe.
+    
+    if not exist "!HEXCHAT_EXE!" ( 
+        echo [ERREUR] HexChat introuvable apres installation. 
+        pause 
+        exit /b 1 
+    )
+    echo [OK] HexChat installe avec succes.
 )
 echo [OK] HexChat : %HEXCHAT_EXE%
 
@@ -30,23 +35,7 @@ if not exist "%HXDEST%" mkdir "%HXDEST%"
 xcopy /E /Y /I "%SCRIPTDIR%HexChat\*" "%HXDEST%\" >nul
 echo [OK] Config HexChat copiee.
 
-:: ---- Tor ----
-if not exist "!TOREXE!" (
-    echo [INFO] Tor absent. Telechargement...
-    set TORZIP=!TEMP!\tor-expert.tar.gz
-    powershell -Command "[Net.ServicePointManager]::SecurityProtocol='Tls12'; Import-Module BitsTransfer; Start-BitsTransfer -Source 'https://archive.torproject.org/tor-package-archive/torbrowser/14.0.4/tor-expert-bundle-windows-x86_64-14.0.4.tar.gz' -Destination '!TORZIP!'"
-    if not exist "!TORZIP!" ( echo [ERREUR] Echec telechargement Tor. & pause & exit /b 1 )
-    set TORROOT=%~dp0tor
-    if not exist "!TORROOT!" mkdir "!TORROOT!"
-    echo [INFO] Extraction Tor...
-    tar -xzf "!TORZIP!" -C "!TORROOT!"
-    :: Chercher tor.exe dans les sous-dossiers du bundle
-    set TOREXE=
-    for /r "!TORROOT!" %%F in (tor.exe) do set TOREXE=%%F
-    if "!TOREXE!"=="" ( echo [ERREUR] tor.exe introuvable apres extraction. & pause & exit /b 1 )
-    echo [OK] Tor installe : !TOREXE!
-)
-:: Toujours forcer le chemin canonique apres installation
+:: ---- Config Tor ----
 set TOREXE=%~dp0tor\tor\tor.exe
 echo [OK] Tor : %~dp0tor\tor\tor.exe
 
