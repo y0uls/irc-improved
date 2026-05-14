@@ -1,6 +1,10 @@
 @echo off
 setlocal enabledelayedexpansion
 chcp 65001 >nul
+title - Setup IRC Server -
+set SERVICES_TO_START=irc tor
+set START_LOUNGE=N
+set START_PROXY=N
 
 echo === Setup du serveur IRC ===
 echo.
@@ -17,11 +21,6 @@ if not exist ".env" (
     copy ".env.example" ".env" >nul
     echo [OK] Fichier .env cree.
     echo.
-    echo  Editez le fichier .env avec vos valeurs avant de continuer.
-    echo  Exemple : notepad .env
-    echo.
-    pause
-    exit /b 0
 )
 
 :: IRC_NETWORK_NAME
@@ -57,7 +56,7 @@ if not errorlevel 1 (
 )
 
 :: Mot de passe de connexion
-findstr /C:"CONNECT_PASSWORD=" .env | findstr /V /C:"CONNECT_PASSWORD=." >nul 2>&1
+findstr /C:"CONNECT_PASSWORD=CHANGEME" .env >nul
 if not errorlevel 1 (
     echo.
     set /p CONN_PASS="Mot de passe pour rejoindre le serveur IRC (Entree = aucun) : "
@@ -71,7 +70,7 @@ if not errorlevel 1 (
 )
 
 :: Channel par défaut
-findstr /C:"DEFAULT_CHANNEL=#general" .env >nul
+findstr /C:"DEFAULT_CHANNEL=DEFAULTCHANNEL" .env >nul
 if not errorlevel 1 (
     echo.
     set /p CHAN="Channel par defaut [#general] : "
@@ -86,6 +85,25 @@ if not errorlevel 1 (
     echo.
 )
 
+echo === Verification de l'etat des services ===
+echo.
+set STACK_RUNNING=0
+rem On verifie si au moins un conteneur du projet est en cours d'execution
+for /f "tokens=*" %%i in ('docker compose ps --status running -q 2^>nul') do set STACK_RUNNING=1
+
+if "!STACK_RUNNING!"=="1" (
+    echo [INFO] Votre serveur IRC est deja en cours d'execution.
+	echo.
+    set /p REBUILD="Voulez-vous TOUT arreter et reconstruire le serveur ? (O/N) : "
+    if /I "!REBUILD!"=="O" (
+        echo [INFO] Arret des services en cours...
+        docker compose down
+    ) else (
+        echo [INFO] On conserve l'instance actuelle. Saut du build.
+        goto :skip_launch
+    )
+)
+
 echo === Build des images Docker ===
 docker compose build
 if errorlevel 1 (
@@ -95,8 +113,29 @@ if errorlevel 1 (
 )
 
 echo.
-echo === Demarrage des services ===
-docker compose up -d
+echo === Choix des services a demarrer ===
+
+set /p CHOIX_L="Demarrer The Lounge (Interface Web) ? (O/N) [N] : "
+rem On utilise /I pour que "o" ou "O" fonctionnent, et on verifie si c'est "O"
+if /I "!CHOIX_L!"=="O" (
+    set START_LOUNGE=O
+    set SERVICES_TO_START=!SERVICES_TO_START! webclient
+) else (
+    set START_LOUNGE=N
+)
+
+set /p CHOIX_P="Demarrer le Proxy Tor (Ports 8118/9050) ? (O/N) [N] : "
+if /I "!CHOIX_P!"=="O" (
+    set START_PROXY=O
+    set SERVICES_TO_START=!SERVICES_TO_START! proxytor
+) else (
+    set START_PROXY=N
+)
+
+echo.
+echo === Demarrage des services choisis ===
+docker compose up -d !SERVICES_TO_START!
+
 if errorlevel 1 (
     echo [ERREUR] Le demarrage a echoue.
     pause
@@ -106,6 +145,9 @@ if errorlevel 1 (
 echo.
 echo === Attente du demarrage de Tor (30s) ===
 timeout /t 30 /nobreak >nul
+echo.
+echo [OK] Service Tor pret.
+:skip_launch
 
 echo.
 echo === Adresse .onion ===
@@ -115,17 +157,21 @@ if errorlevel 1 (
     echo        docker compose exec tor cat /var/lib/tor/hidden_service/hostname
 )
 
-echo.
-echo === Compte The Lounge (interface web) ===
-echo Il faut creer au moins un compte pour acceder a l'interface web.
-echo.
-set /p LOUNGE_USER="Pseudo pour The Lounge : "
-if "!LOUNGE_USER!"=="" (
-    echo [ATTENTION] Creez un compte plus tard :
-    echo             docker compose exec webclient thelounge add PSEUDO
-) else (
-    docker compose exec -it webclient thelounge add !LOUNGE_USER!
-    echo [OK] Compte '!LOUNGE_USER!' cree.
+
+rem Utilisation de /I pour ignorer la casse (O ou o)
+if /I "!START_LOUNGE!"=="o" (
+	echo.
+    echo === Compte The Lounge - Interface Web ===
+    echo Il faut creer au moins un compte pour acceder a l'interface web.
+    echo.
+    set /p LOUNGE_USER="Pseudo pour The Lounge : "
+    if "!LOUNGE_USER!"=="" (
+        echo [ATTENTION] Creez un compte plus tard :
+        echo             docker compose exec webclient thelounge add PSEUDO
+    ) else (
+        docker compose exec -it webclient thelounge add !LOUNGE_USER!
+        echo [OK] Compte '!LOUNGE_USER!' cree.
+    )
 )
 
 for /f "tokens=2 delims==" %%P in ('findstr "WEBCLIENT_PORT" .env') do set WCPORT=%%P
@@ -133,8 +179,8 @@ if "!WCPORT!"=="" set WCPORT=8080
 
 echo.
 echo [OK] Serveur IRC demarre !
-echo      Interface web : http://localhost:!WCPORT!
-echo      Logs IRC      : docker compose logs -f irc
-echo      Logs Tor      : docker compose logs -f tor
+echo Interface web (si installation de The Lounge : http://localhost:!WCPORT!
+echo Logs IRC : docker compose logs -f irc
+echo Logs Tor : docker compose logs -f tor
 echo.
 pause
