@@ -3,6 +3,7 @@ FROM inspircd/inspircd-docker:latest
 # Copie le template permchannels (sera modifié au runtime dans /tmp)
 COPY ./permchannels.conf /inspircd/conf.d/permchannels.conf
 COPY ./entrypoint-wrapper.sh /entrypoint-wrapper.sh
+COPY ./docker.motd /conf/docker.motd
 
 USER root
 RUN chmod +x /entrypoint-wrapper.sh && \
