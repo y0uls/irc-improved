@@ -52,6 +52,10 @@ powershell -Command "$f='!OUTDIR!\HexChat\servlist.conf'; (Get-Content $f).Repla
 :: hexchat.conf - copie depuis config statique
 copy /Y "%~dp0\config\hexchat.conf" "!OUTDIR!\HexChat\hexchat.conf" >nul
 
+:: Tor - copie depuis config statique
+robocopy "%~dp0config\tor" "!OUTDIR!\tor" /E /R:3 /W:5 >nul
+echo [OK] Tor inclus.
+
 :: README utilisateur
 (
 echo # Connexion au serveur IRC
@@ -59,8 +63,7 @@ echo.
 echo ## Installation
 echo.
 echo 1. Executer "start.bat"
-echo 2. Une fois l'installation de HexChat finie, ne pas l'executer tout de suite, laisser le script le faire.
-echo 3. Connecte-toi !
+echo 2. Connecte-toi ^^!
 echo.
 echo ## Adresse du serveur
 echo.
@@ -95,8 +98,7 @@ powershell -Command "Compress-Archive -Path '!OUTDIR!\*' -DestinationPath '!ZIPN
 if exist "!ZIPNAME!" (
     echo.
     echo [OK] Package genere : client-package\IRC-Client.zip
-    echo      Distribue ce zip a tes utilisateurs.
-    echo      Ils extraient le dossier HexChat dans %%APPDATA%% et lancent HexChat.
+    echo Distribue ce zip a tes utilisateurs.
 ) else (
     echo [ERREUR] La creation du zip a echoue.
 )
