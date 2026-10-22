@@ -67,11 +67,36 @@ if errorlevel 1 (
     exit /b 1
 )
 
-docker compose exec -T webclient test -f "/var/opt/thelounge/users/!LUSER!.json" >nul 2>&1
-if not errorlevel 1 (
-    echo [ERREUR] Le compte '!LUSER!' existe deja.
-    echo          Pour le supprimer : docker compose exec webclient thelounge remove !LUSER!
-    pause
+rem ----------------------------------------------------------------------
+rem  Compte deja existant ?
+rem
+rem  La comparaison DOIT ignorer la casse : The Lounge traite les
+rem  identifiants sans tenir compte des majuscules, mais stocke un fichier
+rem  par nom exact. Creer "y0uls" quand "Y0uls" existe produit donc deux
+rem  fichiers, et le serveur refuse alors de les charger :
+rem     [ERROR] There is more than one user named "y0uls".
+rem  Resultat vu par l'utilisateur : "Authentication failed" a chaque
+rem  tentative, avec un mot de passe pourtant correct.
+rem ----------------------------------------------------------------------
+set "TL_CHECK=!LUSER!"
+set "DEJAVU="
+rem Chemin ABSOLU : un chemin relatif echoue ici (la commande du for /f
+rem ne part pas du repertoire du script), et PowerShell affiche alors sa
+rem banniere, qui etait prise pour un nom de compte.
+for /f "usebackq delims=" %%E in (`powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0../tools/find-user.ps1" 2^>nul`) do set "DEJAVU=%%E"
+rem Garde-fou : on n'accepte qu'un nom de compte plausible.
+if defined DEJAVU (
+    echo(!DEJAVU!| findstr /R /C:"^[A-Za-z][A-Za-z0-9_-]*$" >nul || set "DEJAVU="
+)
+if defined DEJAVU (
+    echo [ERREUR] Le compte '!DEJAVU!' existe deja.
+    if /I not "!DEJAVU!"=="!LUSER!" (
+        echo          Il ne differe de '!LUSER!' que par la casse, et les
+        echo          identifiants n'en tiennent pas compte : avoir les deux
+        echo          empecherait toute connexion ^(Authentication failed^).
+    )
+    echo          Pour le supprimer : docker compose exec webclient thelounge remove !DEJAVU!
+    if not "%IRC_NO_PAUSE%"=="1" pause
     exit /b 1
 )
 
