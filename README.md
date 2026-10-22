@@ -1,198 +1,288 @@
-# IRC Server — Docker (InspIRCd + Tor + The Lounge)
+# IRC Improved
 
-Serveur IRC privé accessible via un hidden service Tor, avec interface web local intégrée et package client Windows clé en main.
+Un serveur IRC privé, joignable uniquement par une adresse `.onion`, qui
+s'installe en une commande sur Windows + Docker Desktop.
 
-## Structure du projet
+Pas de nom de domaine, pas de certificat, pas de port ouvert sur Internet :
+le serveur n'est accessible que par le réseau Tor, et vos utilisateurs s'y
+connectent soit depuis leur navigateur, soit avec un client de bureau
+pré-configuré que vous leur distribuez en un fichier.
 
 ```
-├── setup.bat                       ← Setup et démarrage du serveur
-├── uninstall.bat                   ← Désinstallation complète
-├── .env.example                    ← Template de configuration
-├── docker-compose.yml
-├── images/
-│   ├── irc/
-|   |   ├── docker.motd             ← Page d'acceuil du serveur IRC
-|   |   ├── Dockerfile              ← Crée l'image InspIRCd
-|   |   ├── entrypoint-wrapper.sh   ← Crée le channel par défaut
-|   |   └── permchannels.conf       ← Fichier channel par défaut
-│   └── tor/
-|       ├── Dockerfile              ← Crée l'image Tor
-|       └── torrc                   ← Fichier de création du hidden service
-└── client-package/
-    ├── build-client.bat            ← Génère IRC-Client.zip
-    └── config/
-        ├── start.bat               ← Wrapper client (Tor + HexChat)
-        ├── uninstall.bat           ← Désinstalleur côté client
-        ├── hexchat.conf            ← Config HexChat complète (proxy inclus)
-        ├── servlist.conf           ← Template réseau IRC (placeholders)
-        └── tor/                    ← Tous les fichiers utiles pour faire fonctionner tor
+setup.bat                      →  serveur en ligne + invitation prête à envoyer
+client-package\build-client.bat →  IRC-Client.zip (3 Mo) pour Windows
 ```
 
----
+## Fonctionnalités
 
-## Déploiement du serveur
+- **Installation en une commande.** `setup.bat` configure, construit, démarre,
+  attend la publication du service caché et affiche tout ce qu'il faut pour
+  faire entrer quelqu'un.
+- **Deux chemins d'accès, une seule adresse.** La même adresse `.onion` sert
+  l'interface web (`http://<onion>/`) et les clients IRC classiques
+  (`<onion>:6667`).
+- **Zéro installation pour vos utilisateurs.** Tor Browser, l'adresse, un
+  identifiant : ils arrivent directement dans le salon. Fonctionne sous
+  Windows, macOS, Linux et Android.
+- **Client de bureau clé en main** pour ceux qui préfèrent : un zip de 3 Mo
+  contenant HexChat pré-configuré et un Tor portable, qui se connecte seul.
+- **Comptes nominatifs et révocables** individuellement, sans toucher aux
+  autres utilisateurs.
+- **Adresse `.onion` sauvegardable et restaurable** en une commande : c'est
+  l'identité du serveur, elle ne doit jamais être perdue.
+- **Salon par défaut permanent**, avec son topic, conservé même vide.
+- **Désinstallation complète**, qui demande explicitement avant de détruire
+  l'identité du serveur.
 
-### Prérequis
+## Prérequis
 
-- Docker Desktop installé et démarré
-- Windows 10/11
+- Windows 10 ou 11
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installé et démarré
 
-### Démarrage
+Aucune autre dépendance : tout le reste tourne dans des conteneurs.
+
+## Installation
 
 ```bat
+git clone https://github.com/<votre-compte>/irc-improved.git
+cd irc-improved
 setup.bat
 ```
 
-Le script gère automatiquement :
+Le script pose quelques questions (nom du réseau, mots de passe, salon par
+défaut, premier compte web), puis affiche un récapitulatif :
 
-1. Création du `.env` depuis `.env.example`
-2. Configuration du nom du réseau IRC
-3. Génération du hash du mot de passe oper (`hmac-sha256`)
-4. Configuration du mot de passe de connexion et du channel par défaut
-5. Build et démarrage des containers
-6. Affichage de l'adresse `.onion`
-7. Création optionnelle d'un compte The Lounge
+```
+======================================================================
+ Serveur IRC demarre
+======================================================================
+ A donner aux utilisateurs - Tor Browser, niveau de securite Standard :
+     http://xxxxxxxx….onion/
 
-### Services disponibles
+ Salon        : #general
+ Admin        : /OPER admin ********
+ Adresse IRC  : xxxxxxxx….onion:6667   (HexChat, WeeChat...)
+ Mot de passe serveur : ********   (clients IRC classiques)
+ Interface web locale : http://localhost:8080   (administrateur)
 
-| Service | Description | Port |
+ Invitation a envoyer a alice : invite-alice.txt
+ ...
+======================================================================
+```
+
+Relancer `setup.bat` plus tard permet de revoir cette configuration ; les
+valeurs déjà renseignées ne sont pas redemandées sans y être invité.
+
+## Donner l'accès à quelqu'un
+
+### Par le navigateur — recommandé
+
+```bat
+scripts\add-user.bat alice
+```
+
+Le compte est créé, le réseau IRC y est pré-rempli, et une invitation
+personnelle `invite-alice.txt` est générée : elle contient l'adresse, le salon
+et les identifiants de cette personne. C'est ce fichier que vous lui envoyez.
+
+Elle installe [Tor Browser](https://www.torproject.org/download/), ouvre
+l'adresse `.onion`, se connecte avec ses identifiants, et arrive directement
+dans le salon — rien à configurer.
+
+`invite.txt` et le QR code `invite-qr.png`, eux, ne contiennent **aucun
+identifiant** : ils servent à communiquer l'adresse du serveur, par exemple à
+quelqu'un qui utilisera un client de bureau.
+
+> Tor Browser doit être en niveau de sécurité **Standard** : en niveau
+> « Safest », JavaScript est désactivé et l'interface web ne s'affiche pas.
+
+### Par un client de bureau
+
+```bat
+client-package\build-client.bat
+```
+
+Produit `client-package\IRC-Client.zip` (~3 Mo). La personne l'extrait,
+double-clique `start.bat`, choisit un pseudo, et HexChat se connecte seul
+au travers de son propre Tor portable. Rien n'est installé en dehors du
+dossier, à part HexChat lui-même s'il est absent.
+
+Le script refuse de produire un package incohérent : il relit l'archive
+générée et vérifie l'adresse, le mot de passe, le salon, l'auto-connexion
+et la présence de chaque fichier.
+
+### Révoquer un accès
+
+```bat
+docker compose exec webclient thelounge remove alice
+```
+
+## Architecture
+
+```
+┌──────────────┐        réseau Tor        ┌─────────────────────────────┐
+│ Tor Browser  │ ───────────────────────► │  tor  (service caché)       │
+│ ou HexChat   │      <onion>:80 / :6667  │   ├─► webclient  :9000      │
+└──────────────┘                          │   └─► irc        :6667      │
+                                          └─────────────────────────────┘
+                                                aucun port ouvert
+                                                vers l'extérieur
+```
+
+| Service | Rôle | Exposition |
 |---|---|---|
-| `irc` | Serveur InspIRCd | interne |
-| `tor` | Hidden service Tor | interne |
-| `proxytor` | Proxy SOCKS5 Tor (optionnel) | `9050`, `8118` |
-| `webclient` | Interface web The Lounge (optionnel) | `8080` |
+| `irc` | Serveur InspIRCd | interne au réseau Docker |
+| `tor` | Service caché Tor (web + IRC) | réseau Tor uniquement |
+| `webclient` | Interface web The Lounge | `.onion` + `127.0.0.1:8080` (admin) |
+| `proxytor` | Proxy SOCKS local, optionnel et déconseillé | `127.0.0.1:9050` (profil `proxy`) |
 
-`proxytor` et `webclient` sont optionnels — le script de setup te demande si tu veux les démarrer.
+Le conteneur `tor` résout les cibles de ses services cachés à son démarrage et
+refuse toute sa configuration si l'une d'elles manque. Son point d'entrée
+attend donc l'interface web une minute, puis démarre sans elle en le signalant
+dans les logs : une panne du web n'emporte jamais l'accès IRC.
 
----
+### Structure du dépôt
 
-## Variables d'environnement (`.env`)
+```
+├── setup.bat                     installation et démarrage
+├── uninstall.bat                 désinstallation (protège l'identité .onion)
+├── docker-compose.yml
+├── .env.example                  modèle de configuration
+├── tools/                        configuration, invitations, helpers PowerShell
+├── scripts/                      add-user, backup-onion, restore-onion
+├── images/
+│   ├── irc/                      image InspIRCd (+ conf.d, MOTD, entrypoint)
+│   └── tor/                      image Tor (torrc, entrypoint)
+└── client-package/               générateur du client Windows
+```
+
+## Configuration
+
+Tout est dans le `.env`, créé par `setup.bat` depuis `.env.example`.
 
 | Variable | Description | Défaut |
 |---|---|---|
-| `IRC_NETWORK_NAME` | Nom du réseau IRC | `MonReseau` |
-| `IRC_NET_SUFFIX` | Suffixe hostname serveur | `.irc.local` |
-| `ADMIN_NAME` | Nom de l'admin | `admin` |
-| `ADMIN_NICK` | Pseudo de l'admin | `Admin` |
-| `ADMIN_EMAIL` | Email admin | `admin@localhost` |
-| `CONNECT_PASSWORD` | Mot de passe de connexion au serveur (vide = aucun) | — |
-| `OPER_PASSWORD_HASH` | Hash `hmac-sha256` du mot de passe oper | — |
-| `DEFAULT_CHANNEL` | Channel créé au démarrage | `#general` |
-| `DEFAULT_TOPIC` | Topic du channel par défaut | — |
-| `WEBCLIENT_PORT` | Port de The Lounge | `8080` |
+| `IRC_NETWORK_NAME` | Nom du réseau affiché par les clients | `MonReseau` |
+| `IRC_NET_SUFFIX` | Suffixe du hostname serveur | `.irc.local` |
+| `ADMIN_NAME`, `ADMIN_NICK`, `ADMIN_EMAIL` | Identité renvoyée par `/ADMIN` | `admin`, `Admin`, `admin@localhost` |
+| `CONNECT_PASSWORD` | Mot de passe du serveur, partagé (vide = aucun) | — |
+| `OPER_PASSWORD` | Mot de passe de `/OPER admin` | — |
+| `OPER_HASH` | `plaintext` ou `bcrypt` | `plaintext` |
+| `DEFAULT_CHANNEL` | Salon créé au démarrage | `#general` |
+| `DEFAULT_TOPIC` | Topic de ce salon | — |
+| `DEFAULT_CHANNEL_MODES` | Modes du salon | `+nt` |
+| `COMPOSE_PROFILES` | Services optionnels (`proxy`) | vide |
+| `WEBCLIENT_PORT` | Port local d'administration | `8080` |
 
----
-
-## Générer le package client Windows
-
-Une fois le serveur démarré :
+Après une modification manuelle du `.env` :
 
 ```bat
-cd client-package
-build-client.bat
+docker compose up -d --force-recreate irc webclient
+docker compose restart tor
 ```
 
-Cela génère `client-package\IRC-Client.zip` en récupérant automatiquement l'adresse `.onion` depuis le container Tor et en l'injectant dans la configuration HexChat.
+Le `restart tor` n'est pas facultatif : un conteneur recréé change d'adresse IP,
+et `tor` ne la résout qu'à son propre démarrage.
 
-### Contenu du zip distribué
+> Évitez `&`, `"` et `$` dans les mots de passe, ainsi qu'une valeur
+> entièrement numérique : ces valeurs traversent une configuration XML et la
+> ligne de commande de l'interface web.
 
-```
-IRC-Client.zip
-├── HexChat\
-│   ├── servlist.conf     ← Réseau .onion préconfiguré
-│   └── hexchat.conf      ← Config complète avec proxy SOCKS5
-├── tor\                  ← Tous les fichiers utiles pour faire fonctionner tor
-├── start.bat             ← Lancement tout-en-un
-├── uninstall.bat         ← Désinstallation côté client
-└── README.txt
-```
-
-### Ce que fait `start.bat` côté client
-
-1. Télécharge et installe **HexChat** silencieusement si absent
-2. Copie la configuration HexChat préconfigurée dans `%APPDATA%\HexChat\`
-3. Lance `tor.exe` en arrière-plan
-4. Attend que le proxy SOCKS5 soit disponible sur `127.0.0.1:9050`
-5. Lance **HexChat** (connecté automatiquement au serveur)
-6. Quand HexChat est fermé, arrête `tor.exe`
-
-L'utilisateur n'a qu'à double-cliquer `start.bat`. Tout est automatique.
-
-### Ce que fait `uninstall.bat` côté client
-
-- Arrête Tor et HexChat si actifs
-- Supprime `%APPDATA%\HexChat\` (config, logs)
-- Désinstalle HexChat silencieusement
-
----
-
-## Connexion via The Lounge (interface web)
-
-1. Ouvre `http://localhost:8080` (si configuré pendant le setup)
-2. Connecte-toi avec le compte créé pendant le setup
-3. Clique sur **+ Add a network** :
-   - **Server** : `irc`
-   - **Port** : `6667`
-   - **TLS** : désactivé
-   - **Channel** : ton channel par défaut (ex: `#general`)
-   - **Password** : le mot de passe de connexion (si configuré)
-
----
-
-## Connexion via WeeChat (avancé)
-
-```
-/set proxy.proxies.tor.type socks5
-/set proxy.proxies.tor.address 127.0.0.1
-/set proxy.proxies.tor.port 9050
-/server add monserveur <adresse>.onion/6667 -proxy=tor
-/connect monserveur
-```
-
----
-
-## Devenir oper
-
-Une fois connecté au serveur IRC :
-
-```
-/OPER admin VOTRE_MOT_DE_PASSE_EN_CLAIR
-```
-
----
-
-## Commandes utiles
+## Administration
 
 ```bat
-# Voir l'adresse .onion
-docker compose exec tor cat /var/lib/tor/hidden_service/hostname
+REM Adresse .onion
+docker compose exec -T tor cat /var/lib/tor/hidden_service/hostname
 
-# Logs en direct
+REM Comptes de l'interface web
+scripts\add-user.bat alice
+docker compose exec webclient thelounge remove alice
+
+REM Régénérer une invitation
+powershell -NoProfile -File tools\make-invite.ps1
+
+REM Logs
 docker compose logs -f irc
 docker compose logs -f tor
 
-# Redémarrer un service
-docker compose restart irc
-
-# Arrêter tout
+REM Arrêt / redémarrage
 docker compose down
-
-# Ajouter un compte The Lounge
-docker compose exec webclient thelounge add PSEUDO
-
-# Supprimer un compte The Lounge
-docker compose exec webclient thelounge remove PSEUDO
-
-# Désinstallation complète (containers, volumes, images, .env)
-uninstall.bat
+docker compose up -d
 ```
 
----
+Pour modérer (`/KILL`, `/GLINE`, `/SAMODE`…), passez opérateur depuis votre
+client :
+
+```
+/OPER admin VOTRE_MOT_DE_PASSE
+```
+
+## Sauvegarde de l'identité du serveur
+
+L'adresse `.onion` est entièrement déterminée par une paire de clés stockée
+dans le volume `irc-improved_tor_keys`. **Si ce volume est perdu, l'adresse est
+irrécupérable** : toutes les invitations et tous les packages clients déjà
+distribués cessent de fonctionner.
+
+```bat
+scripts\backup-onion.bat                          REM → backup\tor-keys-<date>.tgz
+scripts\restore-onion.bat backup\tor-keys-….tgz
+```
+
+L'archive contient la clé privée du service caché : conservez-la comme un mot
+de passe. `uninstall.bat` propose la sauvegarde avant toute suppression et
+demande une confirmation séparée pour détruire l'identité.
 
 ## Sécurité
 
-- Les clés Tor sont stockées dans un **volume Docker** — l'adresse `.onion` persiste entre les redémarrages
-- Le mot de passe oper est stocké **hashé** (`hmac-sha256`) dans le `.env`
-- `INSP_ENABLE_DNSBL=no` est forcé pour la compatibilité Tor
-- Le `.env` doit être dans `.gitignore` — **ne jamais le committer**
-- Le zip client ne contient aucune clé privée ni donnée sensible du serveur
+Ce que le montage apporte :
+
+- Le lien client ↔ serveur est chiffré et authentifié de bout en bout par Tor :
+  l'adresse `.onion` **est** la clé publique du service, elle ne peut pas être
+  usurpée et il n'y a pas de certificat à gérer.
+- Aucun port n'est publié vers Internet, et le port d'administration local est
+  lié à `127.0.0.1`.
+- L'accès web est nominatif : un compte par personne, révocable seul.
+
+Ce qu'il n'apporte pas, et qu'il faut savoir :
+
+- Le serveur voit toutes les conversations en clair ; Tor protège le transport,
+  pas le contenu côté serveur.
+- Le mot de passe du serveur est partagé par tous et figure en clair dans
+  chaque package client distribué : un package qui fuite donne un accès IRC
+  complet. Le contrôle d'accès réel, c'est le compte web.
+- Tous les utilisateurs arrivent avec l'adresse IP du conteneur Tor : il est
+  impossible de les distinguer ou d'en bannir un par son adresse.
+- Il n'y a pas de services NickServ/ChanServ : aucun pseudo n'est réservé côté
+  client de bureau.
+- Le `.env`, les invitations, les sauvegardes et le zip client contiennent des
+  secrets. Ils sont exclus du dépôt par `.gitignore` — gardez-les ainsi.
+
+## Dépannage
+
+| Symptôme | Cause et correctif |
+|---|---|
+| L'adresse `.onion` ne répond plus | `tor` ne résout ses cibles qu'au démarrage. Après recréation d'un conteneur : `docker compose restart tor` |
+| `http://<onion>/` ne répond pas, mais l'IRC fonctionne | L'interface web était injoignable au démarrage de `tor`. `docker compose up -d webclient && docker compose restart tor` |
+| Page blanche dans Tor Browser | Niveau de sécurité « Safest » : JavaScript est désactivé. Passer en « Standard » |
+| Connexion refusée sans raison visible | Vérifier les bans : `docker compose exec -T irc cat /inspircd/data/xline.db`. Les limites sont dans `images/irc/conf.d/00-limits.conf` |
+| `/OPER` échoue | `OPER_PASSWORD` renseigné dans le `.env` ? Puis `docker compose up -d --force-recreate irc` |
+| Le client de bureau ne se connecte pas | Le premier démarrage de Tor prend de 30 s à 3 min ; la fenêtre affiche la progression. Les suivants sont quasi instantanés |
+| Windows bloque `start.bat` ou met `tor.exe` en quarantaine | Le zip est marqué « venu d'Internet ». Clic droit sur le zip → Propriétés → Débloquer, avant d'extraire |
+
+## Sous le capot
+
+- **InspIRCd 4** avec des classes de connexion dédiées au réseau Docker : sans
+  elles, la classe par défaut limite à 3 connexions par adresse IP, et comme
+  tous les utilisateurs Tor partagent l'IP du conteneur `tor`, le serveur
+  plafonnait à 3 personnes.
+- **`connectban` recalibré** : avec ses valeurs par défaut, 10 connexions
+  depuis l'IP partagée suffisaient à bannir tout le monde pour 6 heures.
+- **Sonde de santé sans session IRC** (`pgrep`) : une sonde qui ouvrait une
+  connexion toutes les 15 s alimentait elle-même l'anti-flood.
+- **Salon par défaut généré au démarrage**, avec échappement XML du nom et du
+  topic.
+- **Toute la configuration passe par PowerShell** : les valeurs ne sont jamais
+  interpolées dans une ligne de commande ni utilisées comme chaîne de
+  remplacement d'une expression régulière, et le `.env` est écrit en UTF-8 sans
+  BOM.

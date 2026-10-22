@@ -1,3 +1,8 @@
+# Nom de projet figé : les volumes s'appellent toujours irc-improved_*.
+# Sans cette ligne, renommer ou déplacer le dossier orpheline les volumes,
+# donc fait « perdre » l'adresse .onion sans aucun message d'erreur.
+name: irc-improved
+
 services:
   irc:
     build:
@@ -17,24 +22,37 @@ services:
       INSP_ADMIN_NICK: ${ADMIN_NICK:-Admin}
       INSP_ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@localhost}
       INSP_OPER_NAME: admin
-      INSP_OPER_PASSWORD_HASH: ${OPER_PASSWORD_HASH:-CHANGEME}
-      INSP_OPER_HASH: hmac-sha256
+      # Mot de passe oper. INSP_OPER_PASSWORD_HASH doit rester VIDE :
+      # opers.sh ne reprend INSP_OPER_PASSWORD que dans ce cas.
+      # OPER_HASH=plaintext (défaut) = mot de passe en clair dans le .env.
+      # Pour passer en bcrypt : une fois oper, taper /MKPASSWD bcrypt <mdp>
+      # dans le client, coller le hash dans OPER_PASSWORD et mettre
+      # OPER_HASH=bcrypt.
+      INSP_OPER_PASSWORD: ${OPER_PASSWORD:-}
+      INSP_OPER_PASSWORD_HASH: ""
+      INSP_OPER_HASH: ${OPER_HASH:-plaintext}
       INSP_OPER_SSLONLY: "no"
       INSP_ENABLE_DNSBL: "no"
       INSP_CONNECT_PASSWORD: ${CONNECT_PASSWORD:-}
       INSP_CONNECT_HASH: ""
       DEFAULT_CHANNEL: ${DEFAULT_CHANNEL:-#general}
       DEFAULT_TOPIC: ${DEFAULT_TOPIC:-Bienvenue !}
+      DEFAULT_CHANNEL_MODES: ${DEFAULT_CHANNEL_MODES:-+nt}
     volumes:
       - irc_conf:/inspircd/conf
       - irc_logs:/inspircd/logs
     networks:
       - irc_net
+    # La sonde ne doit PAS ouvrir de session IRC : un « nc 127.0.0.1 6667 »
+    # est compté comme une connexion par le module connectban, qui finissait
+    # par Z-liner le loopback 6 h durant — tout en renvoyant 0, donc en
+    # affichant « healthy » alors que le serveur refusait les connexions.
+    # pgrep sans -x : « pgrep -x inspircd » renvoie 1 dans cette image.
     healthcheck:
-      test: ["CMD", "/usr/bin/nc", "127.0.0.1", "6667"]
-      interval: 15s
+      test: ["CMD-SHELL", "pgrep inspircd >/dev/null"]
+      interval: 30s
       timeout: 5s
-      start_period: 15s
+      start_period: 30s
       retries: 3
 
   tor:
@@ -49,9 +67,27 @@ services:
           cpus: "0.50"
           memory: 128M
     volumes:
+      # Ce volume CONTIENT l'identité du serveur (adresse .onion).
+      # Le supprimer est irréversible : sauvegarde = scripts\backup-onion.bat
       - tor_keys:/var/lib/tor/hidden_service
     networks:
       - irc_net
+    # tor résout les cibles des HiddenServicePort À SON DÉMARRAGE et refuse
+    # toute sa configuration si l'une d'elles est introuvable — l'accès IRC
+    # tomberait avec l'interface web.
+    #
+    # Il n'y a volontairement PAS de « depends_on: webclient » ici. Testé :
+    # quand un service ne démarre pas (port hôte déjà pris, image non
+    # téléchargeable), docker compose interrompt tout ce qui en dépend —
+    # « required: false » n'y change rien. Une panne de l'interface web
+    # emporterait donc l'accès IRC, exactement ce qu'on cherche à éviter.
+    # Sans dépendance, les autres services démarrent quand même.
+    #
+    # L'ordre est assuré autrement, par le comportement : au démarrage,
+    # images/tor/entrypoint.sh attend ~60 s que le nom « webclient » se
+    # résolve, puis repart sans la ligne du service web s'il ne vient pas.
+    # Cette attente couvre aussi le redémarrage de Docker Desktop, où le
+    # démon relance les conteneurs sans tenir compte de depends_on.
     depends_on:
       irc:
         condition: service_healthy
@@ -60,16 +96,68 @@ services:
     image: dperson/torproxy
     container_name: tor-proxy
     restart: unless-stopped
+    # Service optionnel, et déconseillé : l'image n'est plus maintenue
+    # (son Tor est trop ancien pour le réseau actuel) et elle publiait un
+    # proxy SOCKS5 Tor SANS authentification sur toutes les interfaces.
+    # Le profil l'empêche de démarrer avec un simple « docker compose up ».
+    # Pour le lancer malgré tout : docker compose --profile proxy up -d
+    profiles: ["proxy"]
     ports:
-      - "8118:8118"
-      - "9050:9050"
+      - "127.0.0.1:8118:8118"
+      - "127.0.0.1:9050:9050"
+    networks:
+      - irc_net
 
   webclient:
     image: ghcr.io/thelounge/thelounge:latest
     container_name: irc-webclient
     restart: unless-stopped
+    # Ce service n'est plus optionnel : l'adresse .onion publie aussi
+    # l'interface web (HiddenServicePort 80 dans images/tor/torrc), qui est
+    # devenue la porte d'entrée principale. Un utilisateur distant n'a plus
+    # besoin que de Tor Browser et de l'adresse .onion.
+    #
+    # Toute la configuration passe par la ligne de commande : The Lounge
+    # fusionne ces options avec ses valeurs par défaut (lodash.set), il n'y
+    # a donc ni config.js à générer ni bind mount à prévoir.
+    #   public=false     → comptes nominatifs (l'onion web est accessible à
+    #                      quiconque connaît l'adresse)
+    #   lockNetwork=true → masque ET verrouille serveur / port / TLS côté
+    #                      client. L'option « displayNetwork » des anciennes
+    #                      versions n'existe plus en 4.5.
+    #   defaults.*       → valeurs du réseau. defaults.password est le point
+    #                      clé : sans lui, le formulaire part avec un mot de
+    #                      passe vide et la connexion échoue tant que
+    #                      l'utilisateur n'a pas saisi CONNECT_PASSWORD.
+    #                      (defaults.name / host / port / tls ne sont PAS
+    #                      envoyés au navigateur quand lockNetwork est actif :
+    #                      le serveur les applique lui-même.)
+    # reverseProxy reste à false : il n'y a aucun proxy devant The Lounge,
+    # tor parle directement au port 9000.
+    command:
+      - start
+      - -c
+      - "public=false"
+      - -c
+      - "lockNetwork=true"
+      - -c
+      - "defaults.name=${IRC_NETWORK_NAME:-LocalNet}"
+      - -c
+      - "defaults.host=irc"
+      - -c
+      - "defaults.port=6667"
+      - -c
+      - "defaults.tls=false"
+      - -c
+      - "defaults.rejectUnauthorized=false"
+      - -c
+      - "defaults.password=${CONNECT_PASSWORD:-}"
+      - -c
+      - "defaults.join=${DEFAULT_CHANNEL:-#general}"
     ports:
-      - "${WEBCLIENT_PORT:-8080}:9000"
+      # Lié au loopback : accès local de l'administrateur. L'accès des
+      # utilisateurs passe par l'adresse .onion, pas par ce port.
+      - "127.0.0.1:${WEBCLIENT_PORT:-8080}:9000"
     volumes:
       - thelounge_data:/var/opt/thelounge
     networks:

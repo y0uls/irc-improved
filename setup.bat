@@ -1,10 +1,16 @@
 @echo off
+rem ======================================================================
+rem  Setup et demarrage du serveur IRC.
+rem
+rem  Le "cd /d" est la premiere instruction : sans lui, un lancement par
+rem  "Executer en tant qu'administrateur" place le repertoire courant dans
+rem  C:\Windows\System32. Le .env etait alors introuvable, AUCUNE question
+rem  n'etait posee, et le script affichait quand meme [OK].
+rem ======================================================================
+cd /d "%~dp0" || (echo [ERREUR] Impossible d'acceder au dossier du script. & pause & exit /b 1)
 setlocal enabledelayedexpansion
 chcp 65001 >nul
 title - Setup IRC Server -
-set SERVICES_TO_START=irc tor
-set START_LOUNGE=N
-set START_PROXY=N
 
 echo === Setup du serveur IRC ===
 echo.
@@ -17,91 +23,38 @@ if errorlevel 1 (
     exit /b 1
 )
 
-if not exist ".env" (
-    copy ".env.example" ".env" >nul
-    echo [OK] Fichier .env cree.
-    echo.
+rem ----------------------------------------------------------------------
+rem  Configuration (toute la saisie est faite par tools\configure.ps1 :
+rem  un mot de passe contenant ' $ & ! = ou un accent y est gere sans
+rem  risque, ce qui n'etait pas le cas en batch).
+rem ----------------------------------------------------------------------
+set "RECONF="
+if exist ".env" (
+    findstr /R /C:"^OPER_PASSWORD=." .env >nul 2>&1
+    if not errorlevel 1 (
+        echo Ce serveur est deja configure.
+        set /p "ANS=Revoir la configuration (mots de passe, channel) ? (O/N) [N] : "
+        if /I "!ANS!"=="O" set "RECONF=-Force"
+        echo.
+    )
 )
-echo === Configuration du fichier .env ===
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "tools\configure.ps1" !RECONF!
+if errorlevel 1 (
+    echo [ERREUR] La configuration a echoue. Rien n'a ete demarre.
+    pause
+    exit /b 1
+)
+
+rem ----------------------------------------------------------------------
+rem  Build + demarrage.
+rem  Le serveur IRC, le service cache Tor et l'interface web demarrent
+rem  ensemble : la meme adresse .onion publie les deux (IRC sur 6667,
+rem  interface web sur 80). Les services restes optionnels sont des
+rem  profils docker compose, pilotes par COMPOSE_PROFILES dans le .env.
+rem ----------------------------------------------------------------------
 echo.
-findstr /C:"MonReseau" .env >nul
-if not errorlevel 1 (
-    echo [ATTENTION] IRC_NETWORK_NAME est toujours "MonReseau".
-    echo.
-    set /p IRC_NETWORK="Nom de mon network IRC : "
-    echo.
-    powershell -Command "(Get-Content '.env') -replace 'IRC_NETWORK_NAME=.*', 'IRC_NETWORK_NAME=!IRC_NETWORK!' | Set-Content '.env'"
-    echo [OK] Network name enregistre.
-    echo.
-)
-
-findstr /C:"CHANGEME" .env >nul
-if not errorlevel 1 (
-    echo [ATTENTION] OPER_PASSWORD_HASH est toujours "CHANGEME".
-    echo.
-    set /p OPER_PASS="Mot de passe oper (pour /OPER admin) : "
-    echo.
-    echo Generation du hash...
-    for /f "tokens=*" %%H in ('docker run --rm inspircd/inspircd-docker:latest /inspircd/bin/inspircd --mkpasswd hmac-sha256 "!OPER_PASS!" 2^>nul ^| findstr /C:"Password:"') do set HASH_LINE=%%H
-    set HASH=!HASH_LINE:*Password: =!
-    if "!HASH!"=="" (
-        echo [ERREUR] Impossible de generer le hash.
-        pause
-        exit /b 1
-    )
-    powershell -Command "(Get-Content '.env') -replace 'OPER_PASSWORD_HASH=.*', 'OPER_PASSWORD_HASH=!HASH!' | Set-Content '.env'"
-    echo [OK] Hash oper enregistre.
-    echo.
-)
-
-findstr /C:"CONNECT_PASSWORD=CHANGEME" .env >nul
-if not errorlevel 1 (
-    echo.
-    set /p CONN_PASS="Mot de passe pour rejoindre le serveur IRC (Entree = aucun) : "
-    powershell -Command "(Get-Content '.env') -replace '^CONNECT_PASSWORD=.*', 'CONNECT_PASSWORD=!CONN_PASS!' | Set-Content '.env'"
-    if "!CONN_PASS!"=="" (
-        echo [INFO] Aucun mot de passe de connexion.
-    ) else (
-        echo [OK] Mot de passe de connexion enregistre.
-    )
-    echo.
-)
-
-findstr /C:"DEFAULT_CHANNEL=DEFAULTCHANNEL" .env >nul
-if not errorlevel 1 (
-    echo.
-    set /p CHAN="Channel par defaut [#general] : "
-    if "!CHAN!"=="" set CHAN=#general
-    if "!CHAN:~0,1!" neq "#" set CHAN=#!CHAN!
-    powershell -Command "(Get-Content '.env') -replace 'DEFAULT_CHANNEL=.*', 'DEFAULT_CHANNEL=!CHAN!' | Set-Content '.env'"
-
-    set /p TOPIC="Topic du channel !CHAN! : "
-    if "!TOPIC!"=="" set TOPIC=Bienvenue sur le serveur IRC !
-    powershell -Command "(Get-Content '.env') -replace 'DEFAULT_TOPIC=.*', 'DEFAULT_TOPIC=!TOPIC!' | Set-Content '.env'"
-    echo [OK] Channel !CHAN! configure.
-    echo.
-)
-
-echo === Verification de l'etat des services ===
-echo.
-set STACK_RUNNING=0
-rem On verifie si au moins un conteneur du projet est en cours d'execution
-for /f "tokens=*" %%i in ('docker compose ps --status running -q 2^>nul') do set STACK_RUNNING=1
-
-if "!STACK_RUNNING!"=="1" (
-    echo [INFO] Votre serveur IRC est deja en cours d'execution.
-	echo.
-    set /p REBUILD="Voulez-vous TOUT arreter et reconstruire le serveur ? (O/N) : "
-    if /I "!REBUILD!"=="O" (
-        echo [INFO] Arret des services en cours...
-        docker compose down
-    ) else (
-        echo [INFO] On conserve l'instance actuelle. Saut du build.
-        goto :skip_launch
-    )
-)
-
-echo === Build des images Docker ===
+echo === Build des images ===
 docker compose build
 if errorlevel 1 (
     echo [ERREUR] Le build a echoue.
@@ -109,75 +62,162 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo.
-echo === Choix des services a demarrer ===
-
-set /p CHOIX_L="Demarrer The Lounge (Interface Web) ? (O/N) [N] : "
-rem On utilise /I pour que "o" ou "O" fonctionnent, et on verifie si c'est "O"
-if /I "!CHOIX_L!"=="O" (
-    set START_LOUNGE=O
-    set SERVICES_TO_START=!SERVICES_TO_START! webclient
-) else (
-    set START_LOUNGE=N
-)
-
-set /p CHOIX_P="Demarrer le Proxy Tor (Ports 8118/9050) ? (O/N) [N] : "
-if /I "!CHOIX_P!"=="O" (
-    set START_PROXY=O
-    set SERVICES_TO_START=!SERVICES_TO_START! proxytor
-) else (
-    set START_PROXY=N
-)
+set "IRCID_BEFORE="
+for /f "usebackq delims=" %%I in (`docker compose ps -q irc 2^>nul`) do set "IRCID_BEFORE=%%I"
+set "WEBID_BEFORE="
+for /f "usebackq delims=" %%I in (`docker compose ps -q webclient 2^>nul`) do set "WEBID_BEFORE=%%I"
 
 echo.
-echo === Demarrage des services choisis ===
-docker compose up -d !SERVICES_TO_START!
-
+echo === Demarrage des services ===
+docker compose up -d --remove-orphans
 if errorlevel 1 (
-    echo [ERREUR] Le demarrage a echoue.
+    echo [ERREUR] Le demarrage a echoue. Diagnostic : docker compose logs
     pause
     exit /b 1
 )
 
-echo.
-echo === Attente du demarrage de Tor (30s) ===
-timeout /t 30 /nobreak >nul
-echo.
-echo [OK] Service Tor pret.
-:skip_launch
+set "IRCID_AFTER="
+for /f "usebackq delims=" %%I in (`docker compose ps -q irc 2^>nul`) do set "IRCID_AFTER=%%I"
+set "WEBID_AFTER="
+for /f "usebackq delims=" %%I in (`docker compose ps -q webclient 2^>nul`) do set "WEBID_AFTER=%%I"
 
-echo.
-echo === Adresse .onion ===
-docker compose exec tor cat /var/lib/tor/hidden_service/hostname 2>nul
-if errorlevel 1 (
-    echo [INFO] Tor demarre encore :
-    echo        docker compose exec tor cat /var/lib/tor/hidden_service/hostname
-)
+rem Tor ne resout les cibles de son service cache qu'a son demarrage : si
+rem un conteneur cible a ete recree, il a une nouvelle IP et tor repond
+rem dans le vide jusqu'a son redemarrage. Vrai pour irc (port 6667) comme
+rem pour webclient (port 80).
+set "NEEDTOR="
+if not "!IRCID_BEFORE!"=="!IRCID_AFTER!" if not "!IRCID_BEFORE!"=="" set "NEEDTOR=1"
+if not "!WEBID_BEFORE!"=="!WEBID_AFTER!" if not "!WEBID_BEFORE!"=="" set "NEEDTOR=1"
+if defined NEEDTOR echo [INFO] Un conteneur cible a ete recree : redemarrage de Tor...
 
-
-rem Utilisation de /I pour ignorer la casse (O ou o)
-if /I "!START_LOUNGE!"=="o" (
-	echo.
-    echo === Compte The Lounge - Interface Web ===
-    echo Il faut creer au moins un compte pour acceder a l'interface web.
-    echo.
-    set /p LOUNGE_USER="Pseudo pour The Lounge : "
-    if "!LOUNGE_USER!"=="" (
-        echo [ATTENTION] Creez un compte plus tard :
-        echo             docker compose exec webclient thelounge add PSEUDO
-    ) else (
-        docker compose exec -it webclient thelounge add !LOUNGE_USER!
-        echo [OK] Compte '!LOUNGE_USER!' cree.
+rem Et le cas que la comparaison d'ID ne voit pas : tor tourne en mode
+rem repli (sans la ligne du service web) alors que webclient est la.
+rem Cela arrive quand Docker Desktop a relance les conteneurs lui-meme,
+rem dans le desordre - le demon ignore depends_on. Les ID n'ont alors pas
+rem change, mais http://<onion>/ ne repond pas. On repare ici, sinon il
+rem faudrait que l'administrateur pense a "docker compose restart tor".
+if not defined NEEDTOR (
+    if not "!WEBID_AFTER!"=="" (
+        set "WEBLINE="
+        for /f "usebackq delims=" %%L in (`docker compose exec -T tor grep -c "HiddenServicePort 80" /tmp/torrc 2^>nul`) do set "WEBLINE=%%L"
+        if "!WEBLINE!"=="0" (
+            echo [INFO] Le service cache web etait desactive : redemarrage de Tor...
+            set "NEEDTOR=1"
+        )
     )
 )
 
-for /f "tokens=2 delims==" %%P in ('findstr "WEBCLIENT_PORT" .env') do set WCPORT=%%P
-if "!WCPORT!"=="" set WCPORT=8080
+if defined NEEDTOR docker compose restart tor >nul
+
+rem ----------------------------------------------------------------------
+rem  Attente reelle de l'adresse .onion (l'ancienne version attendait
+rem  30 secondes a l'aveugle, puis annoncait "[OK] Service Tor pret").
+rem ----------------------------------------------------------------------
+echo.
+echo === Publication du service cache Tor ===
+set "ONION="
+set /a TRIES=0
+:waitonion
+for /f "usebackq delims=" %%A in (`docker compose exec -T tor cat /var/lib/tor/hidden_service/hostname 2^>nul`) do set "ONION=%%A"
+if "!ONION!"=="" (
+    set /a TRIES+=1
+    if !TRIES! LSS 45 (
+        <nul set /p "=."
+        timeout /t 2 /nobreak >nul
+        goto :waitonion
+    )
+    echo.
+    echo [ERREUR] Tor n'a pas publie d'adresse .onion.
+    echo          Diagnostic : docker compose logs tor
+    pause
+    exit /b 1
+)
+echo.
+echo [OK] Adresse .onion publiee.
+
+rem ----------------------------------------------------------------------
+rem  Comptes de l'interface web.
+rem  L'adresse .onion publie aussi The Lounge : la page de connexion est
+rem  atteignable par quiconque connait l'adresse. Le compte nominatif est
+rem  donc le vrai controle d'acces - un compte par personne.
+rem ----------------------------------------------------------------------
+set "NBUSERS="
+for /f "usebackq delims=" %%N in (`docker compose exec -T webclient sh -c "ls /var/opt/thelounge/users/*.json 2>/dev/null | wc -l" 2^>nul`) do set "NBUSERS=%%N"
+
+set "FIRSTUSER="
+if "!NBUSERS!"=="" (
+    rem Valeur vide = la commande n'a pas pu s'executer, pas "zero compte".
+    rem Sans ce test, un webclient en panne passait pour un serveur deja
+    rem pourvu en comptes et le recapitulatif annoncait quand meme l'URL.
+    echo.
+    echo [ATTENTION] Impossible de lire les comptes de l'interface web.
+    echo             Le conteneur webclient a-t-il demarre ?
+    echo             Diagnostic : docker compose logs webclient
+) else if "!NBUSERS!"=="0" (
+    echo.
+    echo === Premier compte pour l'interface web ===
+    echo Un compte par personne : c'est ce qui protege l'acces web.
+    set /p "LOUNGE_USER=Pseudo (Entree = plus tard) : "
+    if not "!LOUNGE_USER!"=="" (
+        set "IRC_NO_PAUSE=1"
+        call "scripts\add-user.bat" "!LOUNGE_USER!"
+        set "IRC_NO_PAUSE="
+        set "FIRSTUSER=!LOUNGE_USER!"
+    )
+)
+
+rem ----------------------------------------------------------------------
+rem  Invitation a distribuer : adresse web, adresse IRC, salon, et la
+rem  consigne "niveau de securite Standard" dans Tor Browser. Plus un QR
+rem  code de l'URL web.
+rem ----------------------------------------------------------------------
+echo.
+echo === Invitation ===
+powershell -NoProfile -ExecutionPolicy Bypass -File "tools\make-invite.ps1" >nul
+
+rem ----------------------------------------------------------------------
+rem  Recapitulatif : tout ce qu'il faut pour faire entrer quelqu'un.
+rem ----------------------------------------------------------------------
+for /f "usebackq delims=" %%V in (`powershell -NoProfile -ExecutionPolicy Bypass -File "tools\get-env.ps1" -Key DEFAULT_CHANNEL`) do set "CHAN=%%V"
+for /f "usebackq delims=" %%V in (`powershell -NoProfile -ExecutionPolicy Bypass -File "tools\get-env.ps1" -Key CONNECT_PASSWORD`) do set "CONN=%%V"
+for /f "usebackq delims=" %%V in (`powershell -NoProfile -ExecutionPolicy Bypass -File "tools\get-env.ps1" -Key OPER_PASSWORD`) do set "OPER=%%V"
+for /f "usebackq delims=" %%V in (`powershell -NoProfile -ExecutionPolicy Bypass -File "tools\get-env.ps1" -Key WEBCLIENT_PORT`) do set "WCPORT=%%V"
+if "!WCPORT!"=="" set "WCPORT=8080"
 
 echo.
-echo [OK] Serveur IRC demarre !
-echo Interface web (si installation de The Lounge : http://localhost:!WCPORT!
-echo Logs IRC : docker compose logs -f irc
-echo Logs Tor : docker compose logs -f tor
+echo ======================================================================
+echo  Serveur IRC demarre
+echo ======================================================================
+echo  A donner aux utilisateurs - Tor Browser, niveau de securite Standard :
+echo      http://!ONION!/
+echo.
+echo  Salon        : !CHAN!
+echo  Admin        : /OPER admin !OPER!
+echo  Adresse IRC  : !ONION!:6667   ^(HexChat, WeeChat...^)
+if "!CONN!"=="" (
+    echo  Mot de passe serveur : aucun
+) else (
+    echo  Mot de passe serveur : !CONN!   ^(clients IRC classiques^)
+)
+echo  Interface web locale : http://localhost:!WCPORT!   ^(administrateur^)
+echo.
+if defined FIRSTUSER (
+    rem invite.txt ne contient AUCUN identifiant : ceux du compte qui vient
+    rem d'etre cree sont dans son fichier personnel. Envoyer invite.txt a
+    rem cette personne la laisserait sans mot de passe.
+    echo  Invitation a envoyer a !FIRSTUSER! : invite-!FIRSTUSER!.txt
+    echo  Invitation sans identifiants       : invite.txt ^(+ invite-qr.png^)
+) else (
+    echo  Invitation : invite.txt ^(+ invite-qr.png^) - sans identifiants,
+    echo               scripts\add-user.bat en genere une par personne.
+)
+echo.
+echo  Ajouter quelqu'un : scripts\add-user.bat
+echo  Package Windows   : client-package\build-client.bat
+echo.
+echo  Logs      : docker compose logs -f irc
+echo  Sauvegarde: scripts\backup-onion.bat  (l'adresse .onion est unique
+echo              et irrecuperable si le volume tor_keys est perdu)
+echo ======================================================================
 echo.
 pause

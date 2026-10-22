@@ -1,107 +1,37 @@
 @echo off
-setlocal enabledelayedexpansion
+rem ---------------------------------------------------------------------------
+rem  Genere IRC-Client.zip, le package a distribuer aux utilisateurs.
+rem
+rem  Ce fichier ne fait que lancer build-client.ps1 : tout est en PowerShell
+rem  parce que cmd corrompait le zip en silence. "for /f delims==" tronquait un
+rem  mot de passe contenant "=", les "!" disparaissaient, un "&" pouvait
+rem  executer une commande, et une apostrophe faisait echouer la substitution
+rem  - le zip partait alors avec le placeholder __CONN_PASS__ tel quel.
+rem
+rem  Le "cd /d" est indispensable : sans lui, un lancement par "Executer en
+rem  tant qu'administrateur" place le repertoire courant dans System32, et le
+rem  script travaillait differemment selon le dossier d'ou on l'appelait.
+rem ---------------------------------------------------------------------------
+cd /d "%~dp0" || (echo [ERREUR] Impossible d'acceder au dossier du script. & pause & exit /b 1)
 chcp 65001 >nul
+title - Package client IRC -
 
-echo === Generation du package client HexChat ===
-echo.
-
-:: Recuperer l'adresse .onion
-for /f "tokens=*" %%A in ('docker compose exec tor cat /var/lib/tor/hidden_service/hostname 2^>nul') do set ONION=%%A
-if "!ONION!"=="" (
-    echo [ERREUR] Impossible de recuperer l'adresse .onion.
-    echo          Verifiez que les containers sont demarres.
+docker info >nul 2>&1
+if errorlevel 1 (
+    echo [XX] Docker n'est pas lance : l'adresse .onion ne peut pas etre lue.
+    echo      Lancez Docker Desktop, puis setup.bat, puis reessayez.
     pause
     exit /b 1
 )
-echo [OK] Adresse .onion : !ONION!
 
-:: Le .env est a la racine du projet (un niveau au-dessus de client-package\)
-set ENVFILE=%~dp0..\env
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0build-client.ps1" %*
+set RC=%ERRORLEVEL%
 
-:: Recuperer le mot de passe de connexion
-:: Lire CONNECT_PASSWORD sans delayed expansion pour preserver les ! dans le mot de passe
-setlocal disabledelayedexpansion
-set CONN_PASS=
-for /f "tokens=2 delims==" %%P in ('findstr /i "^CONNECT_PASSWORD=" "%~dp0..\.env"') do set CONN_PASS=%%P
-endlocal & set CONN_PASS=%CONN_PASS%
-
-:: Recuperer le channel par defaut
-set CHAN=#general
-for /f "tokens=2 delims==" %%C in ('findstr /i "^DEFAULT_CHANNEL=" "%~dp0..\.env"') do set CHAN=%%C
-
-:: Recuperer le channel par defaut
-set NAMESERV=MonServeurIRC
-for /f "tokens=2 delims==" %%D in ('findstr /i "^IRC_NETWORK_NAME=" "%~dp0..\.env"') do set NAMESERV=%%D
-
-echo [OK] Channel : !CHAN!
-if "!CONN_PASS!"=="" (
-    echo [INFO] Pas de mot de passe de connexion.
-) else (
-    echo [OK] Mot de passe de connexion detecte.
-)
-
-:: Creer le dossier de config HexChat
-set OUTDIR=%~dp0HexChat-config
-if exist "!OUTDIR!" rmdir /s /q "!OUTDIR!"
-mkdir "!OUTDIR!\HexChat"
-
-:: servlist.conf - copie depuis template + substitution des placeholders
-copy /Y "%~dp0\config\servlist.conf" "!OUTDIR!\HexChat\servlist.conf" >nul
-powershell -Command "$f='!OUTDIR!\HexChat\servlist.conf'; (Get-Content $f).Replace('__ONION__','!ONION!').Replace('__NAMESERV__','!NAMESERV!').Replace('__CONN_PASS__','!CONN_PASS!').Replace('__CHAN__','!CHAN!') | Set-Content $f"
-
-:: hexchat.conf - copie depuis config statique
-copy /Y "%~dp0\config\hexchat.conf" "!OUTDIR!\HexChat\hexchat.conf" >nul
-
-:: Tor - copie depuis config statique
-robocopy "%~dp0config\tor" "!OUTDIR!\tor" /E /R:3 /W:5 >nul
-echo [OK] Tor inclus.
-
-:: README utilisateur
-(
-echo # Connexion au serveur IRC
-echo.
-echo ## Installation
-echo.
-echo 1. Executer "start.bat"
-echo 2. Connecte-toi ^^!
-echo.
-echo ## Adresse du serveur
-echo.
-echo !ONION!:6667
-) > "!OUTDIR!\README.txt"
-
-:: Copier start.bat statique dans le package
-copy /Y "%~dp0\config\start.bat" "!OUTDIR!\start.bat" >nul
-if not exist "!OUTDIR!\start.bat" (
-    echo [ERREUR] start.bat introuvable a cote de build-client.bat
-    pause
-    exit /b 1
-)
-echo [OK] start.bat inclus.
-
-
-:: Copier uninstall.bat statique dans le package
-copy /Y "%~dp0\config\uninstall.bat" "!OUTDIR!\uninstall.bat" >nul
-if not exist "!OUTDIR!\uninstall.bat" (
-    echo [ERREUR] uninstall.bat introuvable a cote de build-client.bat
-    pause
-    exit /b 1
-)
-echo [OK] uninstall.bat inclus.
-
-
-:: Zipper le tout
-set ZIPNAME=%~dp0IRC-Client.zip
-if exist "!ZIPNAME!" del /f /q "!ZIPNAME!"
-powershell -Command "Compress-Archive -Path '!OUTDIR!\*' -DestinationPath '!ZIPNAME!'"
-
-if exist "!ZIPNAME!" (
+if not "%RC%"=="0" (
     echo.
-    echo [OK] Package genere : client-package\IRC-Client.zip
-    echo Distribue ce zip a tes utilisateurs.
-) else (
-    echo [ERREUR] La creation du zip a echoue.
+    echo [XX] La generation a echoue -- rien n'a ete distribue.
 )
-rmdir /S /Q "%~dp0\HexChat-config"
+
 echo.
 pause
+exit /b %RC%

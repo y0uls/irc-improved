@@ -1,4 +1,10 @@
 SocksPort 0
 HiddenServiceDir /var/lib/tor/hidden_service/
+# Acces IRC pour les clients lourds (HexChat, WeeChat) : <onion>:6667
 HiddenServicePort 6667 irc:6667
+# Interface web The Lounge : http://<onion>/
+# Meme adresse .onion, donc une seule cle a sauvegarder.
+# La ligne est retiree automatiquement par entrypoint.sh si le conteneur
+# webclient est absent (voir le commentaire de ce script).
+HiddenServicePort 80 webclient:9000
 Log notice stdout

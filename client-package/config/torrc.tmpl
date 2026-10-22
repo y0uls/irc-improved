@@ -1,0 +1,49 @@
+# ---------------------------------------------------------------------------
+#  Configuration Tor du client IRC  --  MODELE
+# ---------------------------------------------------------------------------
+#  Ne pas editer : start.bat regenere "tor\torrc" a partir de ce modele a
+#  chaque lancement, en remplacant __TORDIR__ par le chemin reel du dossier
+#  (le zip peut etre extrait n'importe ou) et __SOCKSPORT__ par le port libre
+#  retenu.
+#
+#  Pourquoi ce fichier existe : sans "-f <torrc>", tor.exe lit le torrc PAR
+#  DEFAUT de Windows et ecrit son cache dans %APPDATA%\tor. Un torrc personnel
+#  de l'utilisateur serait applique en silence, et plusieurs dizaines de Mo de
+#  cache annuaire resteraient sur sa machine apres desinstallation.
+#
+#  Pourquoi des chemins ABSOLUS : tor resout les chemins relatifs par rapport
+#  au repertoire courant du process, pas par rapport au torrc.
+#
+#  Pourquoi SANS guillemets et avec des ANTISLASHS (teste avec tor 0.4.8.13) :
+#    - Log notice file "C:\...\tor.log"  -> les guillemets font partie du nom
+#      de fichier, tor refuse de demarrer ("Couldn't open file ... Invalid
+#      argument"). Les guillemets ne sont pas retires pour cette option.
+#    - DataDirectory "C:\...\data"       -> entre guillemets, tor interprete
+#      les sequences d'echappement C : un "\t" deviendrait une tabulation.
+#    - Des slashs (C:/...) marchent mais tor les juge "relatifs" et affiche un
+#      avertissement inquietant a chaque lancement.
+#  Sans guillemets, la valeur va jusqu'a la fin de la ligne : les espaces dans
+#  le chemin ne posent donc pas de probleme.
+# ---------------------------------------------------------------------------
+
+# Proxy SOCKS5 local, en ecoute sur la boucle locale uniquement.
+# Port volontairement different de 9050 : si Tor Browser, Orbot ou le service
+# proxytor du serveur ecoute deja sur 9050, tor.exe ne demarre pas et le
+# client se connecterait au Tor de quelqu'un d'autre sans le savoir.
+SocksPort 127.0.0.1:__SOCKSPORT__
+
+# Cache annuaire et cles de session, dans le dossier du package.
+DataDirectory __TORDIR__\data
+
+# Journal lu par start.bat pour suivre la progression du bootstrap.
+Log notice file __TORDIR__\tor.log
+
+# Client pur : jamais de relais, aucun port expose.
+ClientOnly 1
+
+# Limite les ecritures disque du cache annuaire.
+AvoidDiskWrites 1
+
+# Les fichiers geoip/geoip6 (18 Mo) ne sont PAS livres : ils ne servent qu'aux
+# statistiques par pays et aux options de type ExcludeNodes, inutiles ici. Tor
+# affiche "Can't open GEOIP file" au demarrage : c'est sans consequence.
