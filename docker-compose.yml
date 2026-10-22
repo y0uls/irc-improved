@@ -109,7 +109,15 @@ services:
       - irc_net
 
   webclient:
-    image: ghcr.io/thelounge/thelounge:latest
+    # Image derivee de ghcr.io/thelounge/thelounge, personnalisee avec le
+    # logo depose dans branding\ et le nom defini par BRAND_NAME.
+    # Sans logo et sans BRAND_NAME, elle est identique a l'originale.
+    build:
+      context: .
+      dockerfile: images/webclient/Dockerfile
+      args:
+        BRAND_NAME: ${BRAND_NAME:-}
+    image: irc-webclient
     container_name: irc-webclient
     restart: unless-stopped
     # Ce service n'est plus optionnel : l'adresse .onion publie aussi
@@ -154,6 +162,11 @@ services:
       - "defaults.password=${CONNECT_PASSWORD:-}"
       - -c
       - "defaults.join=${DEFAULT_CHANNEL:-#general}"
+      # Apparence par defaut proposee aux nouveaux comptes : "default"
+      # (claire) ou "morning" (sombre), les deux themes livres avec The
+      # Lounge. Chacun peut ensuite changer dans Settings > Appearance.
+      - -c
+      - "theme=${WEB_THEME:-default}"
     ports:
       # Lié au loopback : accès local de l'administrateur. L'accès des
       # utilisateurs passe par l'adresse .onion, pas par ce port.

@@ -218,6 +218,47 @@ if ($cfg.ContainsKey('COMPOSE_PROFILES') -and $cfg['COMPOSE_PROFILES'] -match 'w
 if (-not $cfg.ContainsKey('COMPOSE_PROFILES')) { Set-EnvValue 'COMPOSE_PROFILES' '' }
 if (-not $cfg.ContainsKey('WEBCLIENT_PORT')) { Set-EnvValue 'WEBCLIENT_PORT' '8080' }
 
+# 6. Apparence de l'interface web.
+#    BRAND_NAME remplace "The Lounge" dans l'onglet du navigateur et dans
+#    l'application installee sur telephone ; un logo depose dans branding\
+#    remplace le logo d'origine. Les deux sont appliques a la construction
+#    de l'image webclient (images/webclient/Dockerfile).
+$brandDefault = ''
+if ($cfg.ContainsKey('IRC_NETWORK_NAME')) { $brandDefault = $cfg['IRC_NETWORK_NAME'] }
+if (-not $brandDefault) { $brandDefault = 'MonReseau' }
+
+if ($Force -or -not $cfg.ContainsKey('BRAND_NAME')) {
+  $v = Ask 'Nom affiche dans l''onglet du navigateur' $brandDefault
+  Set-EnvValue 'BRAND_NAME' $v
+  Write-Host "[OK] Interface web : $v"
+}
+
+# Theme par defaut : "default" (clair) ou "morning" (sombre), les deux
+# themes livres avec The Lounge. Chaque utilisateur peut en changer ensuite
+# dans Settings > Appearance ; ce reglage est ce que voit un nouveau compte.
+if ($Force -or -not $cfg.ContainsKey('WEB_THEME')) {
+  $cur = 'default'
+  if ($cfg.ContainsKey('WEB_THEME') -and $cfg['WEB_THEME']) { $cur = $cfg['WEB_THEME'] }
+  $def = if ($cur -eq 'morning') { 'S' } else { 'C' }
+  $a = Ask 'Apparence de l''interface : (C)laire ou (S)ombre' $def
+  if ($a -match '^[sSdDnN]') { Set-EnvValue 'WEB_THEME' 'morning'; Write-Host '[OK] Apparence : sombre' }
+  else { Set-EnvValue 'WEB_THEME' 'default'; Write-Host '[OK] Apparence : claire' }
+}
+
+$logoSvg = Join-Path $root 'branding\logo.svg'
+$logoPng = Join-Path $root 'branding\logo.png'
+$found = @()
+if (Test-Path -LiteralPath $logoSvg) { $found += 'logo.svg' }
+if (Test-Path -LiteralPath $logoPng) { $found += 'logo.png' }
+if ($found.Count -gt 0) {
+  Write-Host "[OK] Logo personnalise detecte : branding\$($found -join ', branding\')"
+} else {
+  Write-Host ''
+  Write-Host 'Logo : pour remplacer celui de The Lounge, deposez une image dans'
+  Write-Host '       branding\ (logo.png carre 512x512, et/ou logo.svg) puis'
+  Write-Host '       relancez setup.bat. Details : branding\README.txt'
+}
+
 # Le port local de l'interface web est publie sans condition maintenant que
 # webclient n'est plus optionnel. S'il est deja pris par un autre logiciel,
 # le conteneur ne demarre pas du tout - et c'est l'interface web, donc

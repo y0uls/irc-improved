@@ -44,7 +44,7 @@ Aucune autre dépendance : tout le reste tourne dans des conteneurs.
 ## Installation
 
 ```bat
-git clone https://github.com/<votre-compte>/irc-improved.git
+git clone https://github.com/Y0uls/irc-improved.git
 cd irc-improved
 setup.bat
 ```
@@ -148,12 +148,41 @@ dans les logs : une panne du web n'emporte jamais l'accès IRC.
 ├── uninstall.bat                 désinstallation (protège l'identité .onion)
 ├── docker-compose.yml
 ├── .env.example                  modèle de configuration
+├── branding/                     votre logo (voir branding\README.txt)
 ├── tools/                        configuration, invitations, helpers PowerShell
 ├── scripts/                      add-user, backup-onion, restore-onion
 ├── images/
 │   ├── irc/                      image InspIRCd (+ conf.d, MOTD, entrypoint)
-│   └── tor/                      image Tor (torrc, entrypoint)
+│   ├── tor/                      image Tor (torrc, entrypoint)
+│   └── webclient/                interface web + application du logo
 └── client-package/               générateur du client Windows
+```
+
+## Personnaliser l'interface
+
+L'interface web n'a pas à ressembler à The Lounge. Déposez une image dans
+`branding\`, relancez `setup.bat`, c'est tout :
+
+| Fichier | Effet |
+|---|---|
+| `branding\logo.png` | Icône de l'onglet et de l'écran d'accueil mobile — et grand logo de la page de connexion si aucun SVG n'est fourni. Carré, 512×512 recommandé |
+| `branding\logo.svg` | Grand logo de la page de connexion et de l'écran de chargement, net à toutes les tailles |
+
+Déposez l'un, l'autre, ou les deux ; sans fichier, le logo d'origine est
+conservé. Deux réglages du `.env` complètent l'habillage :
+
+- `BRAND_NAME` : le texte affiché dans l'onglet du navigateur et dans
+  l'application installée sur téléphone (par défaut, le nom du réseau).
+- `WEB_THEME` : `default` pour l'apparence claire, `morning` pour la sombre.
+  C'est ce que voit un nouveau compte ; chacun peut en changer ensuite dans
+  *Settings → Appearance*.
+
+Tout est appliqué à la construction de l'image `webclient`, et le cache des
+navigateurs est invalidé automatiquement : les personnes déjà inscrites voient
+le nouveau logo à leur visite suivante, sans avoir à vider quoi que ce soit.
+
+```bat
+docker compose build webclient && docker compose up -d webclient
 ```
 
 ## Configuration
@@ -169,8 +198,10 @@ Tout est dans le `.env`, créé par `setup.bat` depuis `.env.example`.
 | `OPER_PASSWORD` | Mot de passe de `/OPER admin` | — |
 | `OPER_HASH` | `plaintext` ou `bcrypt` | `plaintext` |
 | `DEFAULT_CHANNEL` | Salon créé au démarrage | `#general` |
-| `DEFAULT_TOPIC` | Topic de ce salon | — |
+| `DEFAULT_TOPIC` | Topic de ce salon | `Bienvenue sur le serveur IRC !` |
 | `DEFAULT_CHANNEL_MODES` | Modes du salon | `+nt` |
+| `BRAND_NAME` | Nom affiché dans l'onglet du navigateur | nom du réseau |
+| `WEB_THEME` | Apparence par défaut : `default` (claire) ou `morning` (sombre) | `default` |
 | `COMPOSE_PROFILES` | Services optionnels (`proxy`) | vide |
 | `WEBCLIENT_PORT` | Port local d'administration | `8080` |
 
@@ -264,13 +295,18 @@ Ce qu'il n'apporte pas, et qu'il faut savoir :
 |---|---|
 | L'adresse `.onion` ne répond plus | `tor` ne résout ses cibles qu'au démarrage. Après recréation d'un conteneur : `docker compose restart tor` |
 | `http://<onion>/` ne répond pas, mais l'IRC fonctionne | L'interface web était injoignable au démarrage de `tor`. `docker compose up -d webclient && docker compose restart tor` |
+| « Délai d'attente dépassé » puis « la connexion a échoué », surtout sur Android | Le navigateur a ouvert l'adresse en `https://` (comportement par défaut quand on tape une adresse sans schéma). Le service caché ne publie que le port 80 : il faut le préfixe `http://` explicite, idéalement en collant le lien de l'invitation. Tor chiffre déjà tout le trajet, `http` sur une adresse `.onion` n'est pas une connexion en clair |
 | Page blanche dans Tor Browser | Niveau de sécurité « Safest » : JavaScript est désactivé. Passer en « Standard » |
 | Connexion refusée sans raison visible | Vérifier les bans : `docker compose exec -T irc cat /inspircd/data/xline.db`. Les limites sont dans `images/irc/conf.d/00-limits.conf` |
 | `/OPER` échoue | `OPER_PASSWORD` renseigné dans le `.env` ? Puis `docker compose up -d --force-recreate irc` |
 | Le client de bureau ne se connecte pas | Le premier démarrage de Tor prend de 30 s à 3 min ; la fenêtre affiche la progression. Les suivants sont quasi instantanés |
 | Windows bloque `start.bat` ou met `tor.exe` en quarantaine | Le zip est marqué « venu d'Internet ». Clic droit sur le zip → Propriétés → Débloquer, avant d'extraire |
 
-## Sous le capot
+## Choix techniques
+
+Quelques réglages s'écartent volontairement des valeurs par défaut des
+composants utilisés. Ils sont tous liés au même fait : derrière un service
+caché, **tous les utilisateurs partagent l'adresse IP du conteneur Tor**.
 
 - **InspIRCd 4** avec des classes de connexion dédiées au réseau Docker : sans
   elles, la classe par défaut limite à 3 connexions par adresse IP, et comme
@@ -285,4 +321,10 @@ Ce qu'il n'apporte pas, et qu'il faut savoir :
 - **Toute la configuration passe par PowerShell** : les valeurs ne sont jamais
   interpolées dans une ligne de commande ni utilisées comme chaîne de
   remplacement d'une expression régulière, et le `.env` est écrit en UTF-8 sans
-  BOM.
+  BOM. Un mot de passe contenant `'`, `$`, `!` ou `=` traverse donc la chaîne
+  intact, du setup jusqu'au package client.
+
+## Licence
+
+Aucune licence n'est encore déclarée : par défaut, tous droits réservés.
+Ajoutez un fichier `LICENSE` si vous souhaitez autoriser la réutilisation.
