@@ -165,11 +165,16 @@ L'interface web n'a pas à ressembler à The Lounge. Déposez une image dans
 
 | Fichier | Effet |
 |---|---|
-| `branding\logo.png` | Icône de l'onglet et de l'écran d'accueil mobile — et grand logo de la page de connexion si aucun SVG n'est fourni. Carré, 512×512 recommandé |
-| `branding\logo.svg` | Grand logo de la page de connexion et de l'écran de chargement, net à toutes les tailles |
+| `branding\logo.svg` | Recommandé. Grand logo (page de connexion, écran de chargement) **et** icône de l'onglet, net à toutes les tailles |
+| `branding\logo.png` | Icônes qui exigent un bitmap : écran d'accueil des téléphones, application installée. Sert aussi de grand logo si aucun SVG n'est fourni. Carré, 512×512, fond transparent |
+| `branding\logo-dark.svg` ou `.png` | Facultatif : variante affichée en thème sombre, pour un logo qui deviendrait illisible sur fond foncé |
 
-Déposez l'un, l'autre, ou les deux ; sans fichier, le logo d'origine est
-conservé. Deux réglages du `.env` complètent l'habillage :
+Déposez ce que vous voulez ; sans fichier, le logo d'origine est conservé.
+Un fichier exporté en JPEG puis renommé `.png` est détecté et signalé pendant
+le build : ce format ne peut pas porter de transparence, et le damier de
+l'éditeur se retrouve alors aplati dans l'image.
+
+Deux réglages du `.env` complètent l'habillage :
 
 - `BRAND_NAME` : le texte affiché dans l'onglet du navigateur et dans
   l'application installée sur téléphone (par défaut, le nom du réseau).
@@ -177,9 +182,17 @@ conservé. Deux réglages du `.env` complètent l'habillage :
   C'est ce que voit un nouveau compte ; chacun peut en changer ensuite dans
   *Settings → Appearance*.
 
-Tout est appliqué à la construction de l'image `webclient`, et le cache des
-navigateurs est invalidé automatiquement : les personnes déjà inscrites voient
-le nouveau logo à leur visite suivante, sans avoir à vider quoi que ce soit.
+Tout est appliqué à la construction de l'image `webclient` : logo, nom, icône
+d'onglet, icône de mention, manifeste de l'application installée, et les 25
+mentions de la marque d'origine présentes dans l'interface (écran d'aide,
+bandeau de mise à jour, réglages, texte affiché sans JavaScript). Le message
+diffusé dans le salon quand quelqu'un se déconnecte est également neutralisé :
+par défaut, il annonçait le nom et le site du logiciel à tous les participants.
+
+Le cache des navigateurs est invalidé automatiquement. Un nouveau service
+worker ne prend cependant la main qu'une fois tous les onglets du site fermés :
+pour vérifier un changement de logo, fermez l'onglet ou passez en navigation
+privée, sinon vous verrez encore l'ancien.
 
 ```bat
 docker compose build webclient && docker compose up -d webclient

@@ -167,6 +167,12 @@ services:
       # Lounge. Chacun peut ensuite changer dans Settings > Appearance.
       - -c
       - "theme=${WEB_THEME:-default}"
+      # Message diffuse dans le salon quand quelqu'un se deconnecte. Par
+      # defaut, The Lounge y annonce son nom et son site : la marque
+      # partait donc vers tous les participants, sur un serveur dont
+      # l'interet est justement la discretion.
+      - -c
+      - "leaveMessage=${LEAVE_MESSAGE:-Deconnecte}"
     ports:
       # Lié au loopback : accès local de l'administrateur. L'accès des
       # utilisateurs passe par l'adresse .onion, pas par ce port.

@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <g transform="translate(0, 30)">
+    
+    <!-- Décalage Rouge / Magenta (Glitch Layer 1) -->
+    <g fill="none" stroke="#FF0055" stroke-width="4" opacity="0.75" transform="translate(-4, 2)">
+      <!-- Tête de Mort Cyber / Masque -->
+      <path d="M 170,140 L 250,90 L 330,140 L 320,270 L 280,310 L 280,330 L 220,330 L 220,310 L 180,270 Z" />
+      <!-- Yeux Hexagonaux -->
+      <polygon points="195,185 225,175 235,195 225,215 195,215 185,195" />
+      <polygon points="305,185 275,175 265,195 275,215 305,215 315,195" />
+      <!-- Denture / Portes Réseau -->
+      <line x1="235" y1="310" x2="235" y2="330" />
+      <line x1="250" y1="310" x2="250" y2="330" />
+      <line x1="265" y1="310" x2="265" y2="330" />
+      <!-- Lignes de Signal Glitch -->
+      <line x1="100" y1="120" x2="400" y2="120" stroke-dasharray="15, 5, 40, 10" />
+      <line x1="80" y1="280" x2="420" y2="280" stroke-dasharray="30, 8, 10, 25" />
+    </g>
+
+    <!-- Décalage Cyan / Bleuté (Glitch Layer 2) -->
+    <g fill="none" stroke="#00F0FF" stroke-width="4" opacity="0.75" transform="translate(4, -2)">
+      <!-- Tête de Mort Cyber / Masque -->
+      <path d="M 170,140 L 250,90 L 330,140 L 320,270 L 280,310 L 280,330 L 220,330 L 220,310 L 180,270 Z" />
+      <!-- Yeux Hexagonaux -->
+      <polygon points="195,185 225,175 235,195 225,215 195,215 185,195" />
+      <polygon points="305,185 275,175 265,195 275,215 305,215 315,195" />
+      <!-- Denture / Portes Réseau -->
+      <line x1="235" y1="310" x2="235" y2="330" />
+      <line x1="250" y1="310" x2="250" y2="330" />
+      <line x1="265" y1="310" x2="265" y2="330" />
+      <!-- Lignes de Signal Glitch -->
+      <line x1="100" y1="120" x2="400" y2="120" stroke-dasharray="10, 20, 5, 15" />
+      <line x1="80" y1="280" x2="420" y2="280" stroke-dasharray="5, 15, 50, 5" />
+    </g>
+
+    <!-- Layer Principal Blanc (Structure Nette) -->
+    <g fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="square">
+      <!-- Contour Tête de Mort -->
+      <path d="M 170,140 L 250,90 L 330,140 L 320,270 L 280,310 L 280,330 L 220,330 L 220,310 L 180,270 Z" />
+      
+      <!-- Yeux Glitch -->
+      <polygon points="195,185 225,175 235,195 225,215 195,215 185,195" fill="#FFFFFF" />
+      <polygon points="305,185 275,175 265,195 275,215 305,215 315,195" fill="#FFFFFF" />
+      
+      <!-- Nez / Symbole Hash IRC (#) stylisé -->
+      <path d="M 243,235 L 238,265 M 262,235 L 257,265 M 233,245 L 268,245 M 230,257 L 265,257" stroke="#FFFFFF" stroke-width="3" />
+
+      <!-- Dents / Barres de connexion -->
+      <line x1="235" y1="310" x2="235" y2="330" />
+      <line x1="250" y1="310" x2="250" y2="330" />
+      <line x1="265" y1="310" x2="265" y2="330" />
+
+      <!-- Viseur / Frame de Cible -->
+      <path d="M 120,160 L 120,110 L 170,110" stroke-width="3" />
+      <path d="M 380,160 L 380,110 L 330,110" stroke-width="3" />
+      <path d="M 120,320 L 120,370 L 170,370" stroke-width="3" />
+      <path d="M 380,320 L 380,370 L 330,370" stroke-width="3" />
+    </g>
+
+    <!-- Blocs d'artefacts / Glitch pixels -->
+    <rect x="110" y="200" width="18" height="6" fill="#00F0FF" />
+    <rect x="370" y="240" width="25" height="4" fill="#FF0055" />
+    <rect x="140" y="350" width="12" height="12" fill="#FFFFFF" />
+    <rect x="330" y="130" width="30" height="3" fill="#00F0FF" />
+  </g>
+</svg>
