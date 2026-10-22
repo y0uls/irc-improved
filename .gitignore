@@ -1,7 +1,48 @@
+# ======================================================================
+#  Secrets — ne doivent jamais être versionnés
+# ======================================================================
+
+# Configuration réelle : mots de passe du serveur et de l'admin
 .env
-client-package/HexChat-config/
-images/tor/hidden_service/hs_ed25519_secret_key
-images/tor/hidden_service/hs_ed25519_public_key
-images/tor/hidden_service/hostname
-node-compile-cache/
-phantomjs/
+
+# Sauvegardes des clés du service caché = l'identité .onion du serveur
+backup/
+
+# Invitations générées (adresse .onion + mots de passe en clair)
+invite.txt
+invite-*.txt
+invite-qr.png
+
+# Package client généré (contient l'adresse .onion et le mot de passe)
+client-package/IRC-Client.zip
+
+# ======================================================================
+#  Artefacts de build et d'exécution
+# ======================================================================
+
+# Dossier de montage du package, laissé en place si un build échoue
+client-package/build-stage/
+
+# Produits par le Tor du package quand on teste le client en local
+client-package/config/tor/torrc
+client-package/config/tor/tor.log
+client-package/config/tor/tor.pid
+client-package/config/tor/data/
+
+# Profil HexChat et pseudo créés par start.bat lors d'un test local
+client-package/config/HexChatProfile/
+client-package/config/nick.txt
+client-package/config/*.flag
+
+# ======================================================================
+#  Système et éditeurs
+# ======================================================================
+Thumbs.db
+desktop.ini
+ehthumbs.db
+$RECYCLE.BIN/
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*~
