@@ -136,21 +136,15 @@ echo [OK] /var/opt/thelounge/users/!LUSER!.json
 
 rem ----------------------------------------------------------------------
 rem  Pre-remplissage du reseau IRC dans le compte.
-rem ----------------------------------------------------------------------
-for /f "usebackq delims=" %%V in (`powershell -NoProfile -ExecutionPolicy Bypass -File "tools\get-env.ps1" -Key IRC_NETWORK_NAME`) do set "NETNAME=%%V"
-for /f "usebackq delims=" %%V in (`powershell -NoProfile -ExecutionPolicy Bypass -File "tools\get-env.ps1" -Key CONNECT_PASSWORD`) do set "CONNPW=%%V"
-for /f "usebackq delims=" %%V in (`powershell -NoProfile -ExecutionPolicy Bypass -File "tools\get-env.ps1" -Key DEFAULT_CHANNEL`) do set "CHAN=%%V"
-if "!NETNAME!"=="" set "NETNAME=IRC"
-if "!CHAN!"=="" set "CHAN=#general"
-
-rem Le script est donne a node par l'entree standard : l'image The Lounge
-rem n'a pas de /tmp, et rien n'est ecrit dans le conteneur.
 rem
-rem Les -e sont ENTRE GUILLEMETS : un nom de reseau ou un topic contenant
-rem une espace ("Mon Reseau") coupait sinon l'argument en deux, docker
-rem prenait le second mot pour le nom du service, et le pre-remplissage
-rem echouait avec "no such service".
-docker compose exec -T -e "TL_USER=!LUSER!" -e "TL_NETWORK=!NETNAME!" -e "TL_PASSWORD=!CONNPW!" -e "TL_CHANNEL=!CHAN!" webclient node < "scripts\provision-network.js"
+rem  Confie a tools\provision-user.ps1, qui lit lui-meme le .env. Le mot de
+rem  passe de connexion etait lu ici par un for /f, sous
+rem  enabledelayedexpansion : son ! etait mange au moment du set, et le ^
+rem  avec lui (Conn!ect^9x devenait Connect9x). Le compte enregistrait un
+rem  mot de passe serveur faux et InspIRCd refusait la connexion, sans
+rem  aucun message.
+rem ----------------------------------------------------------------------
+powershell -NoProfile -ExecutionPolicy Bypass -File "tools\provision-user.ps1" -User "!LUSER!"
 if errorlevel 1 (
     echo [ATTENTION] Le reseau n'a pas pu etre pre-renseigne.
     echo             Le compte fonctionne, mais l'utilisateur devra valider
@@ -173,6 +167,16 @@ if not errorlevel 1 set "INVITE_OK=1"
 
 set "ONION="
 for /f "usebackq delims=" %%A in (`docker compose exec -T tor cat /var/lib/tor/hidden_service/hostname 2^>nul`) do set "ONION=%%A"
+
+rem Le salon, pour l'affichage. Expansion retardee COUPEE le temps du
+rem for /f : sinon un ! du nom serait mange au moment du set, et un ^ avec
+rem lui. Le second setlocal la retablit sans endlocal, qui perdrait CHAN :
+rem ces deux portees se ferment d'elles-memes a la fin du script.
+setlocal disabledelayedexpansion
+set "CHAN="
+for /f "usebackq delims=" %%V in (`powershell -NoProfile -ExecutionPolicy Bypass -File "tools\get-env.ps1" -Key DEFAULT_CHANNEL`) do set "CHAN=%%V"
+setlocal enabledelayedexpansion
+if "!CHAN!"=="" set "CHAN=#general"
 
 echo.
 echo ======================================================================

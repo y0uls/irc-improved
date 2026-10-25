@@ -177,47 +177,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "tools\make-invite.ps1" >nul
 
 rem ----------------------------------------------------------------------
 rem  Recapitulatif : tout ce qu'il faut pour faire entrer quelqu'un.
+rem
+rem  Ecrit par tools\show-summary.ps1, qui lit lui-meme le .env. Les mots
+rem  de passe etaient lus ici par un for /f, sous enabledelayedexpansion :
+rem  leur ! etait mange au moment du set, et le ^ avec lui. Pass!word42
+rem  s'affichait Password42, et le /OPER recopie depuis cet ecran
+rem  echouait. Aucune valeur du .env ne doit transiter par ce script.
 rem ----------------------------------------------------------------------
-for /f "usebackq delims=" %%V in (`powershell -NoProfile -ExecutionPolicy Bypass -File "tools\get-env.ps1" -Key DEFAULT_CHANNEL`) do set "CHAN=%%V"
-for /f "usebackq delims=" %%V in (`powershell -NoProfile -ExecutionPolicy Bypass -File "tools\get-env.ps1" -Key CONNECT_PASSWORD`) do set "CONN=%%V"
-for /f "usebackq delims=" %%V in (`powershell -NoProfile -ExecutionPolicy Bypass -File "tools\get-env.ps1" -Key OPER_PASSWORD`) do set "OPER=%%V"
-for /f "usebackq delims=" %%V in (`powershell -NoProfile -ExecutionPolicy Bypass -File "tools\get-env.ps1" -Key WEBCLIENT_PORT`) do set "WCPORT=%%V"
-if "!WCPORT!"=="" set "WCPORT=8080"
-
-echo.
-echo ======================================================================
-echo  Serveur IRC demarre
-echo ======================================================================
-echo  A donner aux utilisateurs - Tor Browser, niveau de securite Standard :
-echo      http://!ONION!/
-echo.
-echo  Salon        : !CHAN!
-echo  Admin        : /OPER admin !OPER!
-echo  Adresse IRC  : !ONION!:6667   ^(HexChat, WeeChat...^)
-if "!CONN!"=="" (
-    echo  Mot de passe serveur : aucun
-) else (
-    echo  Mot de passe serveur : !CONN!   ^(clients IRC classiques^)
-)
-echo  Interface web locale : http://localhost:!WCPORT!   ^(administrateur^)
-echo.
-if defined FIRSTUSER (
-    rem invite.txt ne contient AUCUN identifiant : ceux du compte qui vient
-    rem d'etre cree sont dans son fichier personnel. Envoyer invite.txt a
-    rem cette personne la laisserait sans mot de passe.
-    echo  Invitation a envoyer a !FIRSTUSER! : invite-!FIRSTUSER!.txt
-    echo  Invitation sans identifiants       : invite.txt ^(+ invite-qr.png^)
-) else (
-    echo  Invitation : invite.txt ^(+ invite-qr.png^) - sans identifiants,
-    echo               scripts\add-user.bat en genere une par personne.
-)
-echo.
-echo  Ajouter quelqu'un : scripts\add-user.bat
-echo  Package Windows   : client-package\build-client.bat
-echo.
-echo  Logs      : docker compose logs -f irc
-echo  Sauvegarde: scripts\backup-onion.bat  (l'adresse .onion est unique
-echo              et irrecuperable si le volume tor_keys est perdu)
-echo ======================================================================
+powershell -NoProfile -ExecutionPolicy Bypass -File "tools\show-summary.ps1" -Onion "!ONION!" -FirstUser "!FIRSTUSER!"
 echo.
 pause
