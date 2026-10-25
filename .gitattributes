@@ -1,0 +1,28 @@
+# ======================================================================
+#  Fins de ligne
+#
+#  Git pour Windows convertit par defaut les fichiers texte en CRLF a
+#  l'extraction (core.autocrlf=true). Pour les fichiers lus DANS les
+#  conteneurs Linux, c'est fatal : "#!/bin/sh" devient "#!/bin/sh\r",
+#  interpreteur introuvable. Sur un poste ou le projet etait clone pour la
+#  premiere fois, le build du webclient echouait ainsi sur
+#  "/bin/sh: /apply-branding.sh: not found", puis le conteneur irc sur
+#  entrypoint-wrapper.sh. Le poste ou les fichiers avaient ete ecrits
+#  n'avait pas le probleme : il ne passait jamais par une extraction.
+#
+#  Les Dockerfiles retirent aussi les \r au build, pour le cas d'une copie
+#  ZIP ou d'une edition sous Windows, que ce fichier ne couvre pas.
+# ======================================================================
+
+# Tout ce qui part dans une image Docker : LF, quel que soit le poste.
+images/**   text eol=lf
+*.sh        text eol=lf
+
+# Fichiers binaires : jamais convertis.
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.ico       binary
+*.zip       binary
+*.exe       binary
+*.tgz       binary
