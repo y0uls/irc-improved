@@ -12,7 +12,11 @@ COPY ./entrypoint-wrapper.sh /entrypoint-wrapper.sh
 COPY ./docker.motd /conf/docker.motd
 
 USER root
-RUN chmod +x /entrypoint-wrapper.sh && \
+# Le sed retire les fins de ligne Windows (CRLF) : avec elles, le conteneur
+# ne demarrait pas ("#!/bin/sh\r" introuvable) sur un poste ou Git avait
+# converti les fichiers a l'extraction. Voir images/webclient/Dockerfile.
+RUN sed -i 's/\r$//' /entrypoint-wrapper.sh /inspircd/conf.d/*.conf /conf/docker.motd && \
+    chmod +x /entrypoint-wrapper.sh && \
     chown -R inspircd:inspircd /inspircd/conf.d && \
     chmod 755 /inspircd/conf.d && \
     chmod 644 /inspircd/conf.d/*.conf
