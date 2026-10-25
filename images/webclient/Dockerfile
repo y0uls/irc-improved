@@ -16,7 +16,15 @@ COPY branding/ /branding/
 COPY images/webclient/apply-branding.sh /apply-branding.sh
 
 USER root
-RUN chmod +x /apply-branding.sh && \
+# Le sed retire les fins de ligne Windows (CRLF). Git pour Windows les
+# ajoute a l'extraction (core.autocrlf=true, son reglage par defaut) :
+# "#!/bin/sh" devient alors "#!/bin/sh\r", interpreteur introuvable, et le
+# build echouait sur "/bin/sh: /apply-branding.sh: not found" - sur tout
+# poste ou le projet etait clone pour la premiere fois. Le .gitattributes
+# l'evite pour un clone ; ce sed couvre aussi une copie ZIP ou une edition
+# sous Windows.
+RUN sed -i 's/\r$//' /apply-branding.sh && \
+    chmod +x /apply-branding.sh && \
     /apply-branding.sh "$BRAND_NAME" && \
     rm -rf /branding /apply-branding.sh
 
